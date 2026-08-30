@@ -1,12 +1,23 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path'); // Módulo essencial para gerenciar caminhos de pastas
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static(__dirname));
+// 1. Aponta para a pasta 'public' onde estão o index.html, painel.html e logo.png
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 2. Rotas para entregar as páginas corretamente no Render
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/painel', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'painel.html'));
+});
 
 let lojaAberta = true;
 let pedidosAtivos = []; // Array de memória para manter os pedidos salvos
@@ -125,11 +136,8 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORTA = 3000;
+// Porta dinâmica para o Render + fallback para porta 3000 local
+const PORTA = process.env.PORT || 3000;
 server.listen(PORTA, () => {
-  console.log(`\n=================================`);
-  console.log(`Servidor rodando com sucesso!`);
-  console.log(`Cardápio: http://localhost:${PORTA}/index.html`);
-  console.log(`Painel:   http://localhost:${PORTA}/painel.html`);
-  console.log(`=================================\n`);
+  console.log(`Servidor rodando com sucesso na porta ${PORTA}`);
 });
