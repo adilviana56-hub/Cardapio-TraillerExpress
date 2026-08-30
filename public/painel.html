@@ -192,36 +192,42 @@
       const container = document.getElementById('container-cardapio');
       container.innerHTML = '';
 
-      if (cardapioAtual.length === 0) {
+      if (!cardapioAtual || cardapioAtual.length === 0) {
         container.innerHTML = '<p style="color:#888;">Nenhuma categoria cadastrada.</p>';
         return;
       }
 
       cardapioAtual.forEach(cat => {
+        const listaProdutos = cat.produtos || cat.itens || [];
+
         let html = `
           <div class="cat-box">
             <div class="cat-header">
               <h3>${cat.categoria}</h3>
               <div>
-                <button class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;" onclick="editarCategoria('${cat.categoria}')">✏️ Editar Nome</button>
-                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirCategoria('${cat.categoria}')">🗑️ Excluir</button>
+                <button class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;" onclick="editarCategoria('${(cat.categoria || '').replace(/'/g, "\\'")}')">✏️ Editar Nome</button>
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirCategoria('${(cat.categoria || '').replace(/'/g, "\\'")}')">🗑️ Excluir</button>
               </div>
             </div>
         `;
 
-        if (!cat.produtos || cat.produtos.length === 0) {
+        if (listaProdutos.length === 0) {
           html += `<p style="font-size: 13px; color: #999;">Nenhum produto nesta categoria.</p>`;
         } else {
-          cat.produtos.forEach(p => {
+          listaProdutos.forEach(p => {
             const ativo = produtoEstaAtivo(p);
+            const nomeEscapado = (p.nome || '').replace(/'/g, "\\'");
+            const descEscapada = (p.descricao || '').replace(/'/g, "\\'");
+            const preco = Number(p.preco || 0);
+
             html += `
               <div class="item-produto">
                 <div class="item-info">
-                  <strong>${p.nome}</strong> - <span style="color:#28a745; font-weight:bold;">R$ ${Number(p.preco).toFixed(2).replace('.', ',')}</span>
+                  <strong>${p.nome}</strong> - <span style="color:#28a745; font-weight:bold;">R$ ${preco.toFixed(2).replace('.', ',')}</span>
                   <p>${p.descricao || 'Sem descrição'}</p>
                 </div>
                 <div class="item-acoes">
-                  <button class="btn btn-warning" style="padding: 5px 8px; font-size: 12px;" onclick="editarProduto(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, '${(p.descricao || '').replace(/'/g, "\\'")}')">✏️ Editar</button>
+                  <button class="btn btn-warning" style="padding: 5px 8px; font-size: 12px;" onclick="editarProduto(${p.id}, '${nomeEscapado}', ${preco}, '${descEscapada}')">✏️ Editar</button>
                   <button class="btn ${ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id}, ${!ativo})">
                     ${ativo ? 'Disponível' : 'Esgotado'}
                   </button>
@@ -270,7 +276,6 @@
         return alert('Preencha a Categoria, Nome e Preço!');
       }
 
-      // Envia explicitamente ativo e disponivel como true
       socket.emit('adicionarProduto', { categoria, nome, preco: parseFloat(preco), descricao, ativo: true, disponivel: true });
 
       document.getElementById('prod-nome').value = '';
@@ -297,7 +302,6 @@
     }
 
     function toggleProduto(idProduto, statusNovo) {
-      // Envia tanto disponivel quanto ativo para garantir compatibilidade com o backend
       socket.emit('mudarStatusProduto', { idProduto, disponivel: statusNovo, ativo: statusNovo });
     }
 
