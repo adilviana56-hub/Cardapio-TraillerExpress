@@ -28,6 +28,7 @@
     .btn-sucesso { background: #28a745; }
     .btn-danger { background: #dc3545; }
     .btn-warning { background: #ffc107; color: #212529; }
+    .btn-info { background: #17a2b8; color: white; }
     .btn-imprimir { background: #6c757d; color: white; }
 
     /* Cards de Categorias e Produtos */
@@ -45,9 +46,10 @@
     .pedido-card { border-left: 5px solid #007bff; background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .pedido-card.pendente { border-color: #ffc107; }
     .pedido-card.em_preparo { border-color: #17a2b8; }
+    .pedido-card.saiu_entrega { border-color: #28a745; }
     .pedido-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 6px; font-weight: bold; margin-bottom: 8px; }
 
-    /* ESTILO EXCLUSIVO PARA IMPRESSÃO TÉRMICA DE 80MM OU SALVAR EM PDF */
+    /* ESTILO PARA IMPRESSÃO TÉRMICA DE 80MM OU SALVAR EM PDF */
     @media print {
       body * { visibility: hidden; }
       #area-impressao-termica, #area-impressao-termica * { visibility: visible; }
@@ -145,16 +147,13 @@
 
     // RECEBER NOVO PEDIDO EM TEMPO REAL
     socket.on('novoPedido', (pedido) => {
-      // Toca som de notificação
       try {
         const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
         audio.play().catch(() => {});
       } catch (e) {}
 
       if (pedido && pedido.id) {
-        // Remove duplicata se já existir
         pedidosAtuais = pedidosAtuais.filter(p => p.id !== pedido.id);
-        // Adiciona o novo pedido no início
         pedidosAtuais.unshift(pedido);
         renderizarPedidos(pedidosAtuais);
       }
@@ -286,12 +285,7 @@
         return alert("Nome ou Preço inválidos!");
       }
 
-      socket.emit('editarProduto', {
-        idProduto,
-        nome: novoNome,
-        preco: novoPreco,
-        descricao: novaDesc
-      });
+      socket.emit('editarProduto', { idProduto, nome: novoNome, preco: novoPreco, descricao: novaDesc });
     }
 
     function toggleProduto(idProduto, disponivel) {
@@ -315,21 +309,32 @@
       container.innerHTML = '';
       pedidos.forEach(p => {
         let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
+        const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
+
         container.innerHTML += `
           <div class="pedido-card ${p.status || 'pendente'}">
             <div class="pedido-header">
               <span>Pedido #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
-              <span>Status: <strong>${p.status ? p.status.toUpperCase() : 'PENDENTE'}</strong></span>
+              <span>Status: <strong>${statusTexto}</strong></span>
             </div>
             <p><strong>Itens:</strong><br>${itensTxt}</p>
             <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')} | <strong>Pagamento:</strong> ${(p.pagamento || '').toUpperCase()}</p>
             <p><strong>Entrega:</strong> ${p.endereco || 'Retirada / Balcão'}</p>
+            ${p.whatsapp || p.telefone ? `<p><strong>WhatsApp:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
             ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
             
             <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
               <button class="btn btn-imprimir" onclick="imprimirPedido(${p.id})">🖨️ Imprimir 80mm / PDF</button>
-              ${p.status === 'pendente' ? `<button class="btn btn-sucesso" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">Aceitar / Em Preparo</button>` : ''}
-              <button class="btn btn-danger" onclick="removerPedido(${p.id})">Finalizar / Concluir</button>
+              
+              ${p.status === 'pendente' ? `
+                <button class="btn btn-info" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
+              ` : ''}
+
+              ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
+                <button class="btn btn-warning" onclick="notificarSaiuEntrega(${p.id})">🛵 Saiu para Entrega (Enviar Whats)</button>
+              ` : ''}
+
+              <button class="btn btn-danger" onclick="removerPedido(${p.id})">✅ Concluir / Apagar</button>
             </div>
           </div>
         `;
@@ -337,7 +342,6 @@
     }
 
     function mudarStatusPedido(id, status) {
-      // Atualiza o status no array local imediatamente
       const pedido = pedidosAtuais.find(p => p.id === id);
       if (pedido) {
         pedido.status = status;
@@ -346,14 +350,40 @@
       socket.emit('alterarStatusPedido', { id, status });
     }
 
-    function removerPedido(id) {
-      // Remove localmente do painel imediatamente ao concluir
-      pedidosAtuais = pedidosAtuais.filter(p => p.id !== id);
+    // AÇÃO EXCLUSIVA PARA ENVIAR A MENSAGEM NO WHATSAPP E MUDAR O STATUS
+    function notificarSaiuEntrega(id) {
+      const pedido = pedidosAtuais.find(p => p.id === id);
+      if (!pedido) return;
+
+      // Atualiza o status local e no servidor
+      pedido.status = 'saiu_entrega';
       renderizarPedidos(pedidosAtuais);
-      socket.emit('removerPedido', id);
+      socket.emit('alterarStatusPedido', { id, status: 'saiu_entrega' });
+
+      // Identifica o número (aceita p.whatsapp ou p.telefone)
+      const numOriginal = pedido.whatsapp || pedido.telefone || '';
+      
+      if (numOriginal) {
+        const numLimpo = numOriginal.replace(/\D/g, '');
+        const numFormatado = numLimpo.startsWith('55') ? numLimpo : `55${numLimpo}`;
+        const mensagem = encodeURIComponent(`Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} do Trailer Express acabou de sair para entrega!`);
+        
+        // Abre o WhatsApp com a mensagem preenchida
+        window.open(`https://api.whatsapp.com/send?phone=${numFormatado}&text=${mensagem}`, '_blank');
+      } else {
+        alert('Este pedido não possui um número de WhatsApp cadastrado!');
+      }
     }
 
-    // FUNÇÃO PARA GERAR COMPROVANTE DE IMPRESSÃO (80MM OU SALVAR EM PDF)
+    function removerPedido(id) {
+      if (confirm("Deseja realmente finalizar e remover este pedido do painel?")) {
+        pedidosAtuais = pedidosAtuais.filter(p => p.id !== id);
+        renderizarPedidos(pedidosAtuais);
+        socket.emit('removerPedido', id);
+      }
+    }
+
+    // FUNÇÃO PARA IMPRESSÃO TÉRMICA 80MM / PDF
     function imprimirPedido(id) {
       const p = pedidosAtuais.find(item => item.id === id);
       if (!p) return alert('Pedido não encontrado!');
@@ -373,7 +403,7 @@
         <div class="divisoria"></div>
         <p><strong>PEDIDO:</strong> #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.data || ''}</p>
         <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
-        ${p.whatsapp ? `<p><strong>TEL:</strong> ${p.whatsapp}</p>` : ''}
+        ${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
         <p><strong>ENDEREÇO:</strong> ${p.endereco || 'Retirada'}</p>
         <div class="divisoria"></div>
         <p><strong>ITENS SOLICITADOS:</strong></p>
