@@ -94,13 +94,29 @@ function calcularTaxaEntrega(clienteLat, clienteLng, formaPagamento = '') {
   };
 }
 
+// Normaliza a lista de produtos garantindo que sempre seja 'produtos'
+function normalizarCardapio(cardapio) {
+  if (!Array.isArray(cardapio)) return [];
+  return cardapio.map(cat => {
+    const lista = cat.produtos || cat.itens || [];
+    return {
+      categoria: cat.categoria || "Geral",
+      produtos: lista.map(p => ({
+        ...p,
+        ativo: p.ativo !== undefined ? p.ativo : (p.disponivel !== undefined ? p.disponivel : true),
+        disponivel: p.disponivel !== undefined ? p.disponivel : (p.ativo !== undefined ? p.ativo : true)
+      }))
+    };
+  });
+}
+
 function carregarCardapio() {
   if (fs.existsSync(DATA_FILE)) {
     try {
       const data = fs.readFileSync(DATA_FILE, 'utf8');
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return normalizarCardapio(parsed);
       }
     } catch (err) {
       console.error("Erro ao ler cardapio.json, usando padrão:", err);
@@ -110,14 +126,14 @@ function carregarCardapio() {
     {
       categoria: "Lanches",
       produtos: [
-        { id: 1, nome: "Hambúrguer 150g", descricao: "Carne artesanal grelhada na hora.", preco: 12.00, ativo: true },
-        { id: 2, nome: "Bacon Crocante", descricao: "Porção de bacon em fatias.", preco: 5.00, ativo: true }
+        { id: 1, nome: "Hambúrguer 150g", descricao: "Carne artesanal grelhada na hora.", preco: 12.00, ativo: true, disponivel: true },
+        { id: 2, nome: "Bacon Crocante", descricao: "Porção de bacon em fatias.", preco: 5.00, ativo: true, disponivel: true }
       ]
     },
     {
       categoria: "Bebidas",
       produtos: [
-        { id: 3, nome: "Refrigerante Lata", descricao: "Lata 350ml trincando de gelada.", preco: 6.00, ativo: true }
+        { id: 3, nome: "Refrigerante Lata", descricao: "Lata 350ml trincando de gelada.", preco: 6.00, ativo: true, disponivel: true }
       ]
     }
   ];
@@ -173,7 +189,6 @@ app.post('/api/calcular-taxa', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  // Transmite o estado completo ao conectar
   socket.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
   socket.emit('carregarPedidos', pedidosAtivos);
 
@@ -204,10 +219,11 @@ io.on('connection', (socket) => {
 
   socket.on('mudarStatusProduto', ({ idProduto, disponivel }) => {
     dadosCardapio.forEach(cat => {
-      const prod = cat.produtos.find(p => p.id === idProduto);
+      const lista = cat.produtos || cat.itens || [];
+      const prod = lista.find(p => p.id === idProduto);
       if (prod) {
         prod.ativo = disponivel;
-        prod.disponivel = disponivel; // Suporta ambas as nomenclaturas no front
+        prod.disponivel = disponivel;
       }
     });
     salvarCardapio();
@@ -216,12 +232,14 @@ io.on('connection', (socket) => {
 
   socket.on('editarProduto', ({ idProduto, nome, preco, descricao }) => {
     dadosCardapio.forEach(cat => {
-      const prod = cat.produtos.find(p => p.id === idProduto);
+      const lista = cat.produtos || cat.itens || [];
+      const prod = lista.find(p => p.id === idProduto);
       if (prod) {
         if (nome) prod.nome = nome.trim();
         if (preco !== undefined && !isNaN(preco)) prod.preco = parseFloat(preco);
         if (descricao !== undefined) prod.descricao = descricao.trim();
         if (prod.ativo === undefined) prod.ativo = true;
+        if (prod.disponivel === undefined) prod.disponivel = true;
       }
     });
     salvarCardapio();
@@ -230,7 +248,8 @@ io.on('connection', (socket) => {
 
   socket.on('excluirProduto', (idProduto) => {
     dadosCardapio.forEach(cat => {
-      cat.produtos = cat.produtos.filter(p => p.id !== idProduto);
+      if (cat.produtos) cat.produtos = cat.produtos.filter(p => p.id !== idProduto);
+      if (cat.itens) cat.itens = cat.itens.filter(p => p.id !== idProduto);
     });
     salvarCardapio();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
@@ -266,18 +285,18 @@ io.on('connection', (socket) => {
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // ADICIONAR PRODUTO CORRIGIDO (Cria a categoria se ela não existir)
   socket.on('adicionarProduto', (novoProduto) => {
     const catEnviada = (novoProduto.categoria || '').trim();
     
     let cat = dadosCardapio.find(c => c.categoria.toLowerCase() === catEnviada.toLowerCase());
 
-    // Se a categoria informada não for encontrada, cria ela automaticamente
     if (!cat) {
       const nomeCatNova = catEnviada || "Outros";
       cat = { categoria: nomeCatNova, produtos: [] };
       dadosCardapio.push(cat);
     }
+
+    if (!cat.produtos) cat.produtos = [];
 
     cat.produtos.push({
       id: Date.now(),
