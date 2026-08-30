@@ -3,406 +3,298 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel do Estabelecimento</title>
+  <title>Painel do Estabelecimento - Trailer Express</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #eef2f5; padding: 20px; max-width: 800px; margin: 0 auto; }
+    body { background: #f4f6f8; padding: 15px; max-width: 900px; margin: 0 auto; color: #333; }
     
-    h1 { color: #333; margin-bottom: 20px; text-align: center; }
+    header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    header h1 { font-size: 20px; color: #cc0000; }
     
-    .card-painel { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
-    .card-painel h2 { font-size: 18px; margin-bottom: 12px; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+    .btn-status { padding: 10px 18px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; color: white; }
+    .btn-aberto { background: #28a745; }
+    .btn-fechado { background: #dc3545; }
 
-    .status-box { display: flex; align-items: center; justify-content: space-between; }
-    .btn-status { padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: white; }
-    .btn-abrir { background: #28a745; }
-    .btn-fechar { background: #dc3545; }
+    .secao { background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .secao h2 { font-size: 17px; margin-bottom: 12px; border-bottom: 2px solid #eee; padding-bottom: 6px; color: #444; }
 
-    .campo { margin-bottom: 10px; }
-    .campo label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 3px; }
-    .campo input, .campo select, .campo textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-    .btn-acao { background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
-
-    .categoria-header { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: #fff0e6; padding: 8px 10px; border-radius: 4px; border-left: 4px solid #ff6600; }
-    .categoria-titulo { color: #ff6600; font-size: 16px; font-weight: bold; }
-    .botoes-cat { display: flex; gap: 5px; }
-    .btn-editar-cat { background: #ffc107; color: #333; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
-    .btn-excluir-cat { background: #dc3545; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
-
-    .item-gestao { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
-    .item-gestao:last-child { border-bottom: none; }
-
-    .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 22px; }
-    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
-    input:checked + .slider { background-color: #28a745; }
-    input:checked + .slider:before { transform: translateX(22px); }
-
-    /* ESTILOS DOS CARDS DE PEDIDOS */
-    .pedido-card { background: #fff3cd; border-left: 5px solid #ffc107; padding: 12px; margin-bottom: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .pedido-card.status-em_preparo { background: #e3f2fd; border-left-color: #0d6efd; }
-    .pedido-card.status-saiu_entrega { background: #f3e5f5; border-left-color: #6f42c1; }
+    /* Formulários */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 15px; }
+    .form-grid input, .form-grid select { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
     
-    .pedido-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; font-size: 16px; }
-    .pedido-detalhes { font-size: 14px; color: #333; margin: 8px 0; }
-    .obs-destaque { background: #ffeeba; color: #856404; padding: 5px 8px; border-radius: 4px; margin-top: 5px; font-weight: bold; }
-    
-    /* BOTOES DE AÇÃO NO CARD */
-    .botoes-pedido { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 10px; }
-    .btn-imprimir { background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
-    .btn-aceitar { background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
-    .btn-recusar { background: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
-    .btn-entrega { background: #6f42c1; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
-    .btn-finalizar { background: #17a2b8; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
-    .btn-wsp { background: #25d366; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-left: 5px; }
+    .btn { background: #007bff; color: white; border: none; padding: 9px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .btn:hover { opacity: 0.9; }
+    .btn-sucesso { background: #28a745; }
+    .btn-danger { background: #dc3545; }
+    .btn-warning { background: #ffc107; color: #212529; }
 
-    .badge-status { padding: 3px 8px; border-radius: 12px; font-size: 11px; text-transform: uppercase; font-weight: bold; }
-    .badge-pendente { background: #ffc107; color: #856404; }
-    .badge-em_preparo { background: #0d6efd; color: white; }
-    .badge-saiu_entrega { background: #6f42c1; color: white; }
+    /* Cards de Categorias e Produtos */
+    .cat-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 15px; background: #fafafa; }
+    .cat-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
+    .cat-header h3 { font-size: 16px; color: #cc0000; }
 
-    @media print {
-      body * { visibility: hidden; }
-      #area-impressao, #area-impressao * { visibility: visible; }
-      #area-impressao { position: absolute; left: 0; top: 0; width: 80mm; font-family: monospace; font-size: 12px; }
-      .linha-divisoria { border-top: 1px dashed #000; margin: 5px 0; }
-      .texto-centro { text-align: center; }
-      .item-linha { display: flex; justify-content: space-between; }
-      .obs-impressa { font-weight: bold; font-size: 13px; margin: 5px 0; }
-    }
+    .item-produto { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+    .item-info { flex: 1; min-width: 200px; }
+    .item-info strong { font-size: 15px; }
+    .item-info p { font-size: 12px; color: #666; margin-top: 2px; }
+    .item-acoes { display: flex; align-items: center; gap: 6px; }
+
+    /* Cards de Pedidos */
+    .pedido-card { border-left: 5px solid #007bff; background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .pedido-card.pendente { border-color: #ffc107; }
+    .pedido-card.em_preparo { border-color: #17a2b8; }
+    .pedido-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 6px; font-weight: bold; margin-bottom: 8px; }
   </style>
 </head>
 <body>
 
-  <div id="area-impressao"></div>
+  <header>
+    <h1>⚙️ Painel de Controle - Trailer Express</h1>
+    <button id="btn-toggle-loja" class="btn-status btn-aberto" onclick="alternarStatusLoja()">
+      Loja Aberta
+    </button>
+  </header>
 
-  <h1>Painel de Controle</h1>
-
-  <!-- LOJA ABERTA / FECHADA -->
-  <div class="card-painel">
-    <h2>Status do Estabelecimento</h2>
-    <div class="status-box">
-      <span>Estado atual: <strong id="texto-status" style="color: #28a745;">ABERTO</strong></span>
-      <div>
-        <button class="btn-status btn-abrir" onclick="alterarStatusLoja(true)">Abrir Loja</button>
-        <button class="btn-status btn-fechar" onclick="alterarStatusLoja(false)">Fechar Loja</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- CADASTRO DE CATEGORIAS -->
-  <div class="card-painel">
-    <h2>Cadastrar Nova Categoria</h2>
+  <!-- GERENCIAR CATEGORIAS -->
+  <div class="secao">
+    <h2>📁 Gerenciar Categorias</h2>
     <div style="display: flex; gap: 10px;">
-      <input type="text" id="nova-categoria-nome" placeholder="Ex: Bebidas, Combos..." style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-      <button class="btn-acao" onclick="cadastrarCategoria()">Criar Categoria</button>
+      <input type="text" id="nova-categoria-nome" placeholder="Nome da Categoria (Ex: Lanche, Bebidas)" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+      <button class="btn btn-sucesso" onclick="adicionarCategoria()">+ Adicionar Categoria</button>
     </div>
   </div>
 
-  <!-- CADASTRO DE PRODUTOS -->
-  <div class="card-painel">
-    <h2>Cadastrar Novo Produto</h2>
-    <div class="campo">
-      <label>Categoria:</label>
-      <select id="select-categoria-produto"></select>
+  <!-- CADASTRAR PRODUTO -->
+  <div class="secao">
+    <h2>➕ Cadastrar Novo Produto</h2>
+    <div class="form-grid">
+      <select id="prod-categoria">
+        <option value="">Selecione a Categoria...</option>
+      </select>
+      <input type="text" id="prod-nome" placeholder="Nome do Produto">
+      <input type="number" step="0.50" id="prod-preco" placeholder="Preço (R$)">
+      <input type="text" id="prod-descricao" placeholder="Descrição (Opcional)">
     </div>
-    <div class="campo">
-      <label>Nome do Produto:</label>
-      <input type="text" id="prod-nome" placeholder="Ex: Coca-Cola 2L">
-    </div>
-    <div class="campo">
-      <label>Descrição:</label>
-      <input type="text" id="prod-desc" placeholder="Ex: Garrafa de 2 Litros gelada">
-    </div>
-    <div class="campo">
-      <label>Preço (R$):</label>
-      <input type="number" step="0.01" id="prod-preco" placeholder="Ex: 12.50">
-    </div>
-    <button class="btn-acao" style="background: #28a745; width: 100%;" onclick="cadastrarProduto()">Salvar Produto</button>
+    <button class="btn btn-sucesso" onclick="adicionarProduto()">Cadastrar Produto</button>
   </div>
 
-  <!-- GESTÃO DE CATEGORIAS E PRODUTOS -->
-  <div class="card-painel">
-    <h2>Gerenciar Categorias e Produtos</h2>
-    <div id="lista-gestao-cardapio"></div>
+  <!-- LISTA E EDIÇÃO DE CARDÁPIO -->
+  <div class="secao">
+    <h2>📋 Cardápio Atual</h2>
+    <div id="container-cardapio"></div>
   </div>
 
   <!-- PEDIDOS RECEBIDOS -->
-  <div class="card-painel">
-    <h2>Pedidos Recebidos</h2>
-    <div id="lista-pedidos">
-      <p id="sem-pedidos" style="color: #777;">Nenhum pedido recebido ainda nesta sessão...</p>
+  <div class="secao">
+    <h2>🔔 Pedidos Recebidos</h2>
+    <div id="container-pedidos">
+      <p style="color: #777;">Nenhum pedido ativo no momento.</p>
     </div>
   </div>
 
   <script>
     const socket = io();
-    let listaPedidosLocais = [];
+    let lojaAberta = true;
+    let cardapioAtual = [];
 
-    // 1. CARREGA TODOS OS PEDIDOS SALVOS QUANDO A PÁGINA É RECARREGADA (F5)
-    socket.on('carregarPedidos', (pedidos) => {
-      listaPedidosLocais = pedidos;
-      renderizarListaPedidos();
+    // OUVIR ESTADO EM TEMPO REAL
+    socket.on('atualizarEstado', (data) => {
+      lojaAberta = data.lojaAberta;
+      cardapioAtual = data.cardapio;
+      atualizarBotaoLoja();
+      renderizarCardapio();
+      atualizarSelectCategorias();
     });
 
-    // 2. RECEBE ATUALIZAÇÕES DA LISTA DE PEDIDOS (MUDANÇA DE STATUS OU REMOÇÃO)
-    socket.on('atualizarListaPedidos', (pedidos) => {
-      listaPedidosLocais = pedidos;
-      renderizarListaPedidos();
+    socket.on('carregarPedidos', (pedidos) => renderizarPedidos(pedidos));
+    socket.on('atualizarListaPedidos', (pedidos) => renderizarPedidos(pedidos));
+    socket.on('novoPedido', () => {
+      const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+      audio.play().catch(() => {});
     });
 
-    // 3. RECEBE UM NOVO PEDIDO EM TEMPO REAL
-    socket.on('receberPedido', (pedido) => {
-      tocarAlertaSom();
-      if (!listaPedidosLocais.some(p => p.id === pedido.id)) {
-        listaPedidosLocais.unshift(pedido);
+    function alternarStatusLoja() {
+      socket.emit('mudarStatusLoja', !lojaAberta);
+    }
+
+    function atualizarBotaoLoja() {
+      const btn = document.getElementById('btn-toggle-loja');
+      if (lojaAberta) {
+        btn.innerText = "● LOJA ABERTA";
+        btn.className = "btn-status btn-aberto";
+      } else {
+        btn.innerText = "● LOJA FECHADA";
+        btn.className = "btn-status btn-fechado";
       }
-      renderizarListaPedidos();
-    });
+    }
 
-    socket.on('novoPedido', (pedido) => {
-      tocarAlertaSom();
-      if (!listaPedidosLocais.some(p => p.id === pedido.id)) {
-        listaPedidosLocais.unshift(pedido);
-      }
-      renderizarListaPedidos();
-    });
+    function atualizarSelectCategorias() {
+      const select = document.getElementById('prod-categoria');
+      select.innerHTML = '<option value="">Selecione a Categoria...</option>';
+      cardapioAtual.forEach(c => {
+        select.innerHTML += `<option value="${c.categoria}">${c.categoria}</option>`;
+      });
+    }
 
-    // FUNÇÃO QUE RENDERIZA OS PEDIDOS NA TELA
-    function renderizarListaPedidos() {
-      const container = document.getElementById('lista-pedidos');
+    function renderizarCardapio() {
+      const container = document.getElementById('container-cardapio');
       container.innerHTML = '';
 
-      if (listaPedidosLocais.length === 0) {
-        container.innerHTML = '<p id="sem-pedidos" style="color: #777;">Nenhum pedido recebido ainda...</p>';
+      if (cardapioAtual.length === 0) {
+        container.innerHTML = '<p style="color:#888;">Nenhuma categoria cadastrada.</p>';
         return;
       }
 
-      listaPedidosLocais.forEach(pedido => {
-        const statusAtual = pedido.status || 'pendente';
-        const itensTexto = pedido.itens.map(i => `${i.quantidade || 1}x ${i.nome}`).join(', ');
-        const obsHtml = pedido.observacao ? `<div class="obs-destaque"><strong>OBS:</strong> ${pedido.observacao}</div>` : '';
-
-        // Tratamento do WhatsApp
-        const whatsappLimpo = pedido.whatsapp ? pedido.whatsapp.replace(/\D/g, '') : '';
-        const whatsappLink = whatsappLimpo ? `https://wa.me/55${whatsappLimpo}` : '#';
-        const whatsappBotao = whatsappLimpo ? `<a href="${whatsappLink}" target="_blank" class="btn-wsp">📱 WhatsApp</a>` : '<span style="color: red; font-size: 11px;">(Sem Zap)</span>';
-
-        // Definição dos Badges
-        let badgeText = 'Pendente';
-        let badgeClass = 'badge-pendente';
-
-        if (statusAtual === 'em_preparo') {
-          badgeText = 'Em Preparo';
-          badgeClass = 'badge-em_preparo';
-        } else if (statusAtual === 'saiu_entrega') {
-          badgeText = 'Saiu para Entrega';
-          badgeClass = 'badge-saiu_entrega';
-        }
-
-        const pedidoJson = JSON.stringify(pedido).replace(/"/g, '&quot;');
-
-        const htmlPedido = `
-          <div class="pedido-card status-${statusAtual}">
-            <div class="pedido-header">
-              <span>Pedido #${pedido.id} - ${pedido.cliente} (${pedido.data || ''})</span>
-              <span>R$ ${Number(pedido.total).toFixed(2).replace('.', ',')}</span>
+      cardapioAtual.forEach(cat => {
+        let html = `
+          <div class="cat-box">
+            <div class="cat-header">
+              <h3>${cat.categoria}</h3>
+              <div>
+                <button class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;" onclick="editarCategoria('${cat.categoria}')">✏️ Editar Nome</button>
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirCategoria('${cat.categoria}')">🗑️ Excluir</button>
+              </div>
             </div>
-            <div class="pedido-detalhes">
-              <p><strong>Status:</strong> <span class="badge-status ${badgeClass}">${badgeText}</span></p>
-              <p><strong>Contato:</strong> ${pedido.whatsapp || 'Não informado'} ${whatsappBotao}</p>
-              <p><strong>Itens:</strong> ${itensTexto}</p>
-              <p><strong>Tipo:</strong> ${pedido.tipoEntrega ? pedido.tipoEntrega.toUpperCase() : ''} ${pedido.endereco ? '- ' + pedido.endereco : ''}</p>
-              <p><strong>Pagamento:</strong> ${pedido.pagamento ? pedido.pagamento.toUpperCase() : ''} ${pedido.troco ? '(Troco para R$ ' + pedido.troco + ')' : ''}</p>
-              ${obsHtml}
-            </div>
-            
-            <div class="botoes-pedido">
-              <button class="btn-imprimir" onclick="prepararEImprimir(${pedidoJson})">🖨️ Imprimir</button>
-              
-              ${statusAtual === 'pendente' ? `
-                <button class="btn-aceitar" onclick="aceitarPedido(${pedido.id})">✅ Aceitar Pedido</button>
-                <button class="btn-recusar" onclick="recusarPedido(${pedido.id})">❌ Recusar</button>
-              ` : ''}
-
-              ${statusAtual === 'em_preparo' ? `
-                <button class="btn-entrega" onclick="saiuParaEntrega(${pedido.id}, '${whatsappLimpo}', '${pedido.cliente}')">🛵 Saiu para Entrega</button>
-                <button class="btn-finalizar" onclick="finalizarPedido(${pedido.id})">✔️ Concluir/Finalizar</button>
-              ` : ''}
-
-              ${statusAtual === 'saiu_entrega' ? `
-                <button class="btn-finalizar" onclick="finalizarPedido(${pedido.id})">✔️ Concluir/Finalizar</button>
-              ` : ''}
-            </div>
-          </div>
-        `;
-
-        container.innerHTML += htmlPedido;
-      });
-    }
-
-    // AÇÕES DOS BOTÕES DE PEDIDO
-    function aceitarPedido(id) {
-      socket.emit('alterarStatusPedido', { id: id, status: 'em_preparo' });
-    }
-
-    function saiuParaEntrega(id, whatsapp, cliente) {
-      socket.emit('alterarStatusPedido', { id: id, status: 'saiu_entrega' });
-
-      // Opcional: abre notificação no WhatsApp do cliente ao despachar
-      if (whatsapp) {
-        const mensagem = encodeURIComponent(`Olá ${cliente}! Seu pedido #${id} acabou de sair para entrega e logo chegará até você! 🛵💨`);
-        window.open(`https://wa.me/55${whatsapp}?text=${mensagem}`, '_blank');
-      }
-    }
-
-    function recusarPedido(id) {
-      if (confirm(`Deseja recusar e remover o Pedido #${id}?`)) {
-        socket.emit('removerPedido', id);
-      }
-    }
-
-    function finalizarPedido(id) {
-      if (confirm(`Deseja marcar o Pedido #${id} como finalizado e remover da tela?`)) {
-        socket.emit('removerPedido', id);
-      }
-    }
-
-    // GESTÃO DE ESTADO DO ESTABELECIMENTO E CARDÁPIO
-    socket.on('atualizarEstado', (data) => {
-      const textoStatus = document.getElementById('texto-status');
-      textoStatus.innerText = data.lojaAberta ? "ABERTO" : "FECHADO";
-      textoStatus.style.color = data.lojaAberta ? "#28a745" : "#dc3545";
-
-      const selectCat = document.getElementById('select-categoria-produto');
-      selectCat.innerHTML = '';
-      data.cardapio.forEach(c => {
-        selectCat.innerHTML += `<option value="${c.categoria}">${c.categoria}</option>`;
-      });
-
-      const divGestao = document.getElementById('lista-gestao-cardapio');
-      divGestao.innerHTML = '';
-
-      data.cardapio.forEach(cat => {
-        let htmlCat = `
-          <div class="categoria-header">
-            <span class="categoria-titulo">${cat.categoria}</span>
-            <div class="botoes-cat">
-              <button class="btn-editar-cat" onclick="editarCategoria('${cat.categoria}')">✏️ Editar</button>
-              <button class="btn-excluir-cat" onclick="excluirCategoria('${cat.categoria}')">🗑️ Excluir</button>
-            </div>
-          </div>
         `;
 
         if (cat.produtos.length === 0) {
-          htmlCat += `<p style="color: #888; font-size: 13px; padding: 5px 10px;">Sem produtos nesta categoria.</p>`;
+          html += `<p style="font-size: 13px; color: #999;">Nenhum produto nesta categoria.</p>`;
+        } else {
+          cat.produtos.forEach(p => {
+            html += `
+              <div class="item-produto">
+                <div class="item-info">
+                  <strong>${p.nome}</strong> - <span style="color:#28a745; font-weight:bold;">R$ ${Number(p.preco).toFixed(2).replace('.', ',')}</span>
+                  <p>${p.descricao || 'Sem descrição'}</p>
+                </div>
+                <div class="item-acoes">
+                  <button class="btn btn-warning" style="padding: 5px 8px; font-size: 12px;" onclick="editarProduto(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, '${(p.descricao || '').replace(/'/g, "\\'")}')">✏️ Editar</button>
+                  <button class="btn ${p.ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id}, ${!p.ativo})">
+                    ${p.ativo ? 'Disponível' : 'Esgotado'}
+                  </button>
+                  <button class="btn btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="excluirProduto(${p.id})">🗑️</button>
+                </div>
+              </div>
+            `;
+          });
         }
 
-        cat.produtos.forEach(p => {
-          htmlCat += `
-            <div class="item-gestao">
-              <span><strong>${p.nome}</strong> (R$ ${Number(p.preco).toFixed(2)})</span>
-              <label class="switch">
-                <input type="checkbox" ${p.ativo ? 'checked' : ''} onchange="alternarProduto(${p.id}, this.checked)">
-                <span class="slider"></span>
-              </label>
-            </div>
-          `;
-        });
-
-        divGestao.innerHTML += htmlCat;
+        html += `</div>`;
+        container.innerHTML += html;
       });
-    });
+    }
 
-    function cadastrarCategoria() {
-      const nome = document.getElementById('nova-categoria-nome').value;
-      if (!nome.trim()) return alert('Digite o nome da categoria.');
-      socket.emit('adicionarCategoria', nome);
-      document.getElementById('nova-categoria-nome').value = '';
+    // AÇÕES DE CATEGORIAS
+    function adicionarCategoria() {
+      const input = document.getElementById('nova-categoria-nome');
+      if (input.value.trim()) {
+        socket.emit('adicionarCategoria', input.value.trim());
+        input.value = '';
+      }
     }
 
     function editarCategoria(nomeAntigo) {
-      const novoNome = prompt(`Novo nome para a categoria "${nomeAntigo}":`, nomeAntigo);
-      if (novoNome && novoNome.trim() !== "" && novoNome !== nomeAntigo) {
-        socket.emit('editarCategoria', { nomeAntigo, novoNome });
+      const novoNome = prompt("Digite o novo nome para a categoria:", nomeAntigo);
+      if (novoNome && novoNome.trim()) {
+        socket.emit('editarCategoria', { nomeAntigo, novoNome: novoNome.trim() });
       }
     }
 
     function excluirCategoria(nomeCategoria) {
-      if (confirm(`Tem certeza que deseja excluir a categoria "${nomeCategoria}" e todos os produtos dela?`)) {
+      if (confirm(`Excluir a categoria "${nomeCategoria}" e todos os seus produtos?`)) {
         socket.emit('excluirCategoria', nomeCategoria);
       }
     }
 
-    function cadastrarProduto() {
-      const categoria = document.getElementById('select-categoria-produto').value;
-      const nome = document.getElementById('prod-nome').value;
-      const descricao = document.getElementById('prod-desc').value;
+    // AÇÕES DE PRODUTOS
+    function adicionarProduto() {
+      const categoria = document.getElementById('prod-categoria').value;
+      const nome = document.getElementById('prod-nome').value.trim();
       const preco = document.getElementById('prod-preco').value;
+      const descricao = document.getElementById('prod-descricao').value.trim();
 
-      if (!nome || !preco) return alert('Preencha o nome e o preço do produto.');
+      if (!categoria || !nome || !preco) {
+        return alert('Preencha a Categoria, Nome e Preço!');
+      }
 
-      socket.emit('adicionarProduto', { categoria, nome, descricao, preco });
+      socket.emit('adicionarProduto', { categoria, nome, preco, descricao });
 
       document.getElementById('prod-nome').value = '';
-      document.getElementById('prod-desc').value = '';
       document.getElementById('prod-preco').value = '';
+      document.getElementById('prod-descricao').value = '';
     }
 
-    function alterarStatusLoja(aberto) {
-      socket.emit('mudarStatusLoja', aberto);
+    function editarProduto(idProduto, nomeAtual, precoAtual, descAtual) {
+      const novoNome = prompt("Nome do Produto:", nomeAtual);
+      if (novoNome === null) return;
+
+      const novoPrecoStr = prompt("Preço (R$):", precoAtual);
+      if (novoPrecoStr === null) return;
+      const novoPreco = parseFloat(novoPrecoStr.replace(',', '.'));
+
+      const novaDesc = prompt("Descrição:", descAtual);
+      if (novaDesc === null) return;
+
+      if (!novoNome.trim() || isNaN(novoPreco)) {
+        return alert("Nome ou Preço inválidos!");
+      }
+
+      socket.emit('editarProduto', {
+        idProduto,
+        nome: novoNome,
+        preco: novoPreco,
+        descricao: novaDesc
+      });
     }
 
-    function alternarProduto(idProduto, disponivel) {
+    function toggleProduto(idProduto, disponivel) {
       socket.emit('mudarStatusProduto', { idProduto, disponivel });
     }
 
-    function tocarAlertaSom() {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.3);
-      } catch (e) {}
+    function excluirProduto(idProduto) {
+      if (confirm("Deseja realmente excluir este produto?")) {
+        socket.emit('excluirProduto', idProduto);
+      }
     }
 
-    function prepararEImprimir(pedido) {
-      const area = document.getElementById('area-impressao');
-      let itensHTML = '';
-      pedido.itens.forEach(item => {
-        itensHTML += `<div class="item-linha"><span>${item.quantidade || 1}x ${item.nome}</span><span>R$ ${Number(item.preco).toFixed(2).replace('.', ',')}</span></div>`;
+    // RENDERIZAR PEDIDOS
+    function renderizarPedidos(pedidos) {
+      const container = document.getElementById('container-pedidos');
+      if (!pedidos || pedidos.length === 0) {
+        container.innerHTML = '<p style="color: #777;">Nenhum pedido ativo no momento.</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      pedidos.forEach(p => {
+        let itensTxt = p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>');
+        container.innerHTML += `
+          <div class="pedido-card ${p.status}">
+            <div class="pedido-header">
+              <span>Pedido #${p.id.toString().slice(-4)} - ${p.cliente} (${p.data})</span>
+              <span>Status: <strong>${p.status.toUpperCase()}</strong></span>
+            </div>
+            <p><strong>Itens:</strong><br>${itensTxt}</p>
+            <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total).toFixed(2)} | <strong>Pagamento:</strong> ${p.pagamento.toUpperCase()}</p>
+            <p><strong>Entrega:</strong> ${p.endereco}</p>
+            ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
+            
+            <div style="margin-top: 10px; display: flex; gap: 8px;">
+              ${p.status === 'pendente' ? `<button class="btn btn-sucesso" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">Aceitar / Em Preparo</button>` : ''}
+              <button class="btn btn-danger" onclick="removerPedido(${p.id})">Finalizar / Concluir</button>
+            </div>
+          </div>
+        `;
       });
+    }
 
-      const obsImpressao = pedido.observacao ? `
-        <div class="linha-divisoria"></div>
-        <div class="obs-impressa"><strong>OBSERVAÇÕES:</strong><br>${pedido.observacao}</div>
-      ` : '';
+    function mudarStatusPedido(id, status) {
+      socket.emit('alterarStatusPedido', { id, status });
+    }
 
-      area.innerHTML = `
-        <div class="texto-centro"><strong>*** LANCHONETE ***</strong><br>PEDIDO #${pedido.id}<br>Data: ${pedido.data || ''}</div>
-        <div class="linha-divisoria"></div>
-        <div><strong>CLIENTE:</strong> ${pedido.cliente}</div>
-        <div><strong>WHATSAPP:</strong> ${pedido.whatsapp || 'N/I'}</div>
-        <div><strong>TIPO:</strong> ${pedido.tipoEntrega ? pedido.tipoEntrega.toUpperCase() : ''}</div>
-        ${pedido.tipoEntrega === 'entrega' ? `<div><strong>ENDEREÇO:</strong> ${pedido.endereco}</div>` : ''}
-        <div class="linha-divisoria"></div>
-        <div class="texto-centro"><strong>ITENS DO PEDIDO</strong></div>
-        ${itensHTML}
-        ${obsImpressao}
-        <div class="linha-divisoria"></div>
-        <div class="item-linha"><strong>TOTAL:</strong><strong>R$ ${Number(pedido.total).toFixed(2).replace('.', ',')}</strong></div>
-        <div><strong>PAGAMENTO:</strong> ${pedido.pagamento ? pedido.pagamento.toUpperCase() : ''}</div>
-        ${pedido.troco ? `<div><strong>TROCO PARA:</strong> R$ ${pedido.troco}</div>` : ''}
-        <div class="linha-divisoria"></div>
-        <div class="texto-centro">Obrigado pela preferência!</div>
-      `;
-
-      window.print();
+    function removerPedido(id) {
+      socket.emit('removerPedido', id);
     }
   </script>
 </body>
