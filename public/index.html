@@ -19,9 +19,13 @@
 
     .categoria-titulo { font-size: 18px; font-weight: bold; margin: 15px 0 10px 0; color: #cc0000; border-bottom: 2px solid #cc0000; padding-bottom: 3px; }
     .produto-card { background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .produto-card.obrigatorio { background: #fff8e6; border: 1px solid #ffe0b2; }
     .produto-info h4 { font-size: 15px; margin-bottom: 4px; }
     .produto-info p { font-size: 12px; color: #666; margin-bottom: 6px; }
     .produto-preco { font-weight: bold; color: #28a745; font-size: 14px; }
+    
+    .badge-obrigatorio { background: #ff9800; color: white; font-size: 11px; font-weight: bold; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-bottom: 4px; }
+    
     .btn-add { background: #cc0000; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
     .btn-add:disabled { background: #ccc; cursor: not-allowed; }
 
@@ -110,7 +114,15 @@
     const socket = io();
     let carrinho = [];
     let lojaAberta = true;
-    
+
+    // ITEM OBRIGATÓRIO BASE
+    const PAO_OBRIGATORIO = {
+      id: 'pao-base-01',
+      nome: 'Pão com Maionese Caseira',
+      preco: 6.00,
+      categoria: 'Lanches'
+    };
+
     // ATUALIZAR STATUS DA LOJA E CARDÁPIO EM TEMPO REAL
     socket.on('atualizarEstado', (data) => {
       lojaAberta = data.lojaAberta;
@@ -136,9 +148,28 @@
 
       cardapio.forEach(cat => {
         const produtosAtivos = cat.produtos.filter(p => p.ativo);
-        if (produtosAtivos.length === 0) return;
+        
+        // Se for a categoria Lanches, tratamos a exibição do Pão Obrigatório no topo
+        let eCategoriaLanches = cat.categoria.toLowerCase() === 'lanches';
+        
+        if (produtosAtivos.length === 0 && !eCategoriaLanches) return;
 
         let html = `<div class="categoria-titulo">${cat.categoria}</div>`;
+
+        // SE FOR CATEGORIA LANCHES, ADICIONA O CARD FIXO DO PÃO OBRIGATÓRIO NO TOPO
+        if (eCategoriaLanches) {
+          html += `
+            <div class="produto-card obrigatorio">
+              <div class="produto-info">
+                <span class="badge-obrigatorio">Obrigatório para Lanches</span>
+                <h4>🍔 ${PAO_OBRIGATORIO.nome}</h4>
+                <p>Base essencial para montagem do seu lanche.</p>
+                <div class="produto-preco">R$ ${PAO_OBRIGATORIO.preco.toFixed(2).replace('.', ',')}</div>
+              </div>
+              <button class="btn-add" style="background: #28a745; cursor: default;" disabled>✓ Incluído</button>
+            </div>
+          `;
+        }
 
         produtosAtivos.forEach(p => {
           html += `
@@ -148,7 +179,7 @@
                 <p>${p.descricao || ''}</p>
                 <div class="produto-preco">R$ ${Number(p.preco).toFixed(2).replace('.', ',')}</div>
               </div>
-              <button class="btn-add" ${!lojaAberta ? 'disabled' : ''} onclick="adicionarAoCarrinho(${p.id}, '${p.nome}', ${p.preco})">+ Add</button>
+              <button class="btn-add" ${!lojaAberta ? 'disabled' : ''} onclick="adicionarAoCarrinho(${p.id}, '${p.nome}', ${p.preco}, '${cat.categoria}')">+ Add</button>
             </div>
           `;
         });
@@ -157,7 +188,21 @@
       });
     }
 
-    function adicionarAoCarrinho(id, nome, preco) {
+    function adicionarAoCarrinho(id, nome, preco, categoria) {
+      // Se for item de Lanches, certifica que o pão base está no carrinho
+      if (categoria && categoria.toLowerCase() === 'lanches') {
+        const temPao = carrinho.some(item => item.id === PAO_OBRIGATORIO.id);
+        if (!temPao) {
+          carrinho.push({
+            id: PAO_OBRIGATORIO.id,
+            nome: PAO_OBRIGATORIO.nome,
+            preco: PAO_OBRIGATORIO.preco,
+            quantidade: 1,
+            isObrigatorio: true
+          });
+        }
+      }
+
       const itemExistente = carrinho.find(i => i.id === id);
       if (itemExistente) {
         itemExistente.quantidade++;
@@ -172,9 +217,17 @@
       if (!item) return;
 
       item.quantidade += delta;
+      
       if (item.quantidade <= 0) {
         carrinho = carrinho.filter(i => i.id !== id);
       }
+
+      // Se remover todos os adicionais/ingredientes de Lanches, limpa o pão base automático
+      const temOutroLanche = carrinho.some(i => !i.isObrigatorio);
+      if (!temOutroLanche) {
+        carrinho = [];
+      }
+
       atualizarCarrinho();
     }
 
@@ -198,13 +251,15 @@
         container.innerHTML += `
           <div class="carrinho-item">
             <div>
-              <strong>${item.nome}</strong><br>
+              <strong>${item.nome} ${item.isObrigatorio ? '<small style="color: #ff9800;">(Base)</small>' : ''}</strong><br>
               <small>R$ ${item.preco.toFixed(2)} x ${item.quantidade}</small>
             </div>
             <div class="qtd-controles">
-              <button onclick="alterarQuantidade(${item.id}, -1)">-</button>
-              <span style="margin: 0 5px;">${item.quantidade}</span>
-              <button onclick="alterarQuantidade(${item.id}, 1)">+</button>
+              ${!item.isObrigatorio ? `
+                <button onclick="alterarQuantidade(${item.id}, -1)">-</button>
+                <span style="margin: 0 5px;">${item.quantidade}</span>
+                <button onclick="alterarQuantidade(${item.id}, 1)">+</button>
+              ` : '<small style="color:#666;">Fixo</small>'}
             </div>
           </div>
         `;
@@ -291,7 +346,7 @@
         textoMsg += `*Obs:* ${observacao}\n`;
       }
 
-      // SUBSTISTUA PELO SEU NÚMERO DE TELEFONE DO ESTABELECIMENTO AQUI (DDD + NÚMERO)
+      // SEU NÚMERO DE TELEFONE DO ESTABELECIMENTO (DDD + NÚMERO)
       const numeroLoja = "5567991438502"; 
 
       const urlWhatsapp = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(textoMsg)}`;
