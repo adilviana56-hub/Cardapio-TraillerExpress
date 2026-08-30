@@ -53,7 +53,17 @@
     .linha-total { font-weight: bold; font-size: 16px; color: #cc0000; border-top: 1px dashed #ccc; padding-top: 6px; margin-top: 6px; }
 
     .aviso-taxa-entrega { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px; padding: 10px; font-size: 12px; margin-top: 8px; }
-    .btn-gps { background: #17a2b8; color: white; border: none; padding: 8px; width: 100%; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; margin-top: 5px; }
+    .btn-gps { background: #17a2b8; color: white; border: none; padding: 8px; width: 100%; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; margin-top: 5px; transition: background 0.3s ease; }
+
+    /* Animação para destacar o botão de GPS em caso de esquecimento */
+    @keyframes piscarGps {
+      0% { background-color: #17a2b8; transform: scale(1); }
+      50% { background-color: #dc3545; transform: scale(1.03); }
+      100% { background-color: #17a2b8; transform: scale(1); }
+    }
+    .destaque-gps {
+      animation: piscarGps 0.8s infinite;
+    }
 
     .campo { margin-top: 10px; }
     .campo label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 3px; }
@@ -153,7 +163,7 @@
     <div class="campo" id="box-endereco">
       <label>Endereço Completo de Entrega *</label>
       <input type="text" id="cliente-endereco" placeholder="Rua, Número, Bairro e Ponto de Referência">
-      <button class="btn-gps" onclick="obterLocalizacaoCliente()">📍 Obter minha localização (GPS)</button>
+      <button class="btn-gps" id="btn-gps-loc" onclick="obterLocalizacaoCliente()">📍 Obter minha localização (GPS)</button>
     </div>
 
     <div class="campo">
@@ -382,6 +392,8 @@
 
     function obterLocalizacaoCliente() {
       const txtStatus = document.getElementById('txt-status-taxa');
+      const btnGps = document.getElementById('btn-gps-loc');
+      btnGps.classList.remove('destaque-gps');
       txtStatus.innerText = "Calculando...";
 
       if (!navigator.geolocation) {
@@ -410,7 +422,7 @@
         },
         (err) => {
           console.error(err);
-          alert("Não foi possível obter a localização. Insira o endereço manualmente.");
+          alert("Não foi possível obter a localização. Por favor, ative o GPS do seu aparelho.");
           txtStatus.innerText = "A combinar";
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -505,7 +517,22 @@
 
       if (!nome) return alert('Por favor, digite seu nome.');
       if (!whatsapp || whatsapp.length < 10) return alert('Por favor, insira um número de WhatsApp válido com DDD.');
-      if (tipoEntrega === 'entrega' && !endereco) return alert('Por favor, informe o endereço de entrega.');
+      
+      // TRAVA OBRIGATÓRIA DE ENTREGA E LOCALIZAÇÃO (GPS)
+      if (tipoEntrega === 'entrega') {
+        if (!endereco) return alert('Por favor, informe o endereço de entrega.');
+        
+        if (!localizacaoCliente || !localizacaoCliente.lat) {
+          alert('⚠️ Para entregas em domicílio, é OBRIGATÓRIO clicar no botão "Obter minha localização (GPS)" para calcular a taxa de entrega!');
+          
+          const btnGps = document.getElementById('btn-gps-loc');
+          if (btnGps) {
+            btnGps.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            btnGps.classList.add('destaque-gps');
+          }
+          return;
+        }
+      }
 
       let subtotalItens = 0;
       let itensFormatadosSocket = [];
@@ -583,6 +610,7 @@
       contadorLanches = 1;
       lancheEmMontagem = { ingredientes: [] };
       taxaEntregaCalculada = 0;
+      localizacaoCliente = null;
       atualizarCarrinho();
 
       document.getElementById('cliente-nome').value = '';
