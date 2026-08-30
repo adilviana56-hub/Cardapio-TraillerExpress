@@ -53,6 +53,7 @@
     .linha-total { font-weight: bold; font-size: 16px; color: #cc0000; border-top: 1px dashed #ccc; padding-top: 6px; margin-top: 6px; }
 
     .aviso-taxa-entrega { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px; padding: 10px; font-size: 12px; margin-top: 8px; }
+    .btn-gps { background: #17a2b8; color: white; border: none; padding: 8px; width: 100%; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; margin-top: 5px; }
 
     .campo { margin-top: 10px; }
     .campo label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 3px; }
@@ -117,10 +118,10 @@
       </div>
       <div class="linha-resumo" id="linha-taxa-entrega">
         <span>Taxa de Entrega:</span>
-        <span style="color: #856404; font-weight: bold;" id="txt-status-taxa">A informar via WhatsApp</span>
+        <span style="color: #856404; font-weight: bold;" id="txt-status-taxa">A calcular</span>
       </div>
       <div class="linha-resumo linha-total">
-        <span>Total dos Itens:</span>
+        <span>Total a Pagar:</span>
         <span>R$ <span id="total-carrinho">0,00</span></span>
       </div>
     </div>
@@ -146,12 +147,13 @@
 
     <!-- AVISO DE TAXA DE ENTREGA -->
     <div class="aviso-taxa-entrega" id="box-aviso-taxa">
-      🛵 <strong>Taxa de Entrega:</strong> O valor da taxa de entrega será informado diretamente no seu WhatsApp de acordo com o seu endereço.
+      📍 <strong>Taxa de Entrega:</strong> Clique no botão GPS abaixo para calcular a taxa de entrega exata do seu endereço!
     </div>
 
     <div class="campo" id="box-endereco">
       <label>Endereço Completo de Entrega *</label>
       <input type="text" id="cliente-endereco" placeholder="Rua, Número, Bairro e Ponto de Referência">
+      <button class="btn-gps" onclick="obterLocalizacaoCliente()">📍 Obter minha localização (GPS)</button>
     </div>
 
     <div class="campo">
@@ -183,6 +185,8 @@
     let carrinho = [];
     let lojaAberta = true;
     let contadorLanches = 1;
+    let taxaEntregaCalculada = 0;
+    let localizacaoCliente = null;
 
     // BASE OBRIGATÓRIA PARA LANCHE
     const PAO_BASE = { nome: 'Pão com Maionese Caseira', preco: 6.00 };
@@ -360,10 +364,48 @@
       atualizarCarrinho();
     }
 
+    function obterLocalizacaoCliente() {
+      const txtStatus = document.getElementById('txt-status-taxa');
+      txtStatus.innerText = "Calculando...";
+
+      if (!navigator.geolocation) {
+        alert("Navegador não suporta geolocalização. A taxa será informada via WhatsApp.");
+        txtStatus.innerText = "A combinar";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          localizacaoCliente = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          
+          socket.emit('calcularTaxaEntrega', localizacaoCliente, (resultado) => {
+            if (resultado.entregavel) {
+              taxaEntregaCalculada = resultado.taxaEntrega;
+              txtStatus.innerText = `R$ ${taxaEntregaCalculada.toFixed(2).replace('.', ',')} (${resultado.distanciaKm} km)`;
+              atualizarCarrinho();
+              alert(`📍 Localização capturada! Taxa calculada: R$ ${taxaEntregaCalculada.toFixed(2)} (${resultado.distanciaKm} km)`);
+            } else {
+              taxaEntregaCalculada = 0;
+              txtStatus.innerText = "Fora da área";
+              atualizarCarrinho();
+              alert(resultado.mensagem || "Endereço fora da área de entrega.");
+            }
+          });
+        },
+        (err) => {
+          console.error(err);
+          alert("Não foi possível obter a localização. Insira o endereço manualmente.");
+          txtStatus.innerText = "A combinar";
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
     function atualizarCarrinho() {
       const container = document.getElementById('itens-carrinho');
       const subtotalSpan = document.getElementById('subtotal-carrinho');
       const totalSpan = document.getElementById('total-carrinho');
+      const tipoEntrega = document.getElementById('tipo-entrega').value;
 
       if (carrinho.length === 0) {
         container.innerHTML = '<p style="color: #888; font-size: 13px;">Seu carrinho está vazio.</p>';
@@ -410,8 +452,11 @@
         }
       });
 
+      const taxa = (tipoEntrega === 'entrega') ? taxaEntregaCalculada : 0;
+      const totalGeral = subtotalItens + taxa;
+
       subtotalSpan.innerText = subtotalItens.toFixed(2).replace('.', ',');
-      totalSpan.innerText = subtotalItens.toFixed(2).replace('.', ',');
+      totalSpan.innerText = totalGeral.toFixed(2).replace('.', ',');
     }
 
     function alternarEntrega() {
@@ -479,12 +524,15 @@
         }
       });
 
+      const valorTaxa = (tipoEntrega === 'entrega') ? taxaEntregaCalculada : 0;
+      const totalGeral = subtotalItens + valorTaxa;
+
       textoMsg += `----------------------------\n`;
       textoMsg += `*Subtotal dos Itens:* R$ ${subtotalItens.toFixed(2).replace('.', ',')}\n`;
       if (tipoEntrega === 'entrega') {
-        textoMsg += `*Taxa de Entrega:* A informar no WhatsApp\n`;
+        textoMsg += `*Taxa de Entrega:* R$ ${valorTaxa.toFixed(2).replace('.', ',')}\n`;
       }
-      textoMsg += `*TOTAL DOS ITENS:* R$ ${subtotalItens.toFixed(2).replace('.', ',')}\n\n`;
+      textoMsg += `*TOTAL A PAGAR:* R$ ${totalGeral.toFixed(2).replace('.', ',')}\n\n`;
       textoMsg += `*Tipo:* ${tipoEntrega.toUpperCase()}\n`;
       if (tipoEntrega === 'entrega') textoMsg += `*Endereço:* ${endereco}\n`;
       textoMsg += `*Pagamento:* ${pagamento.toUpperCase()}\n`;
@@ -499,8 +547,8 @@
         whatsapp: whatsapp,
         itens: itensFormatadosSocket,
         subtotal: subtotalItens,
-        taxaEntrega: 'A combinar',
-        total: subtotalItens,
+        taxaEntrega: valorTaxa,
+        total: totalGeral,
         tipoEntrega: tipoEntrega,
         endereco: tipoEntrega === 'entrega' ? endereco : 'Retirada no Balcão',
         pagamento: pagamento,
@@ -518,6 +566,7 @@
       carrinho = [];
       contadorLanches = 1;
       lancheEmMontagem = { ingredientes: [] };
+      taxaEntregaCalculada = 0;
       atualizarCarrinho();
 
       document.getElementById('cliente-nome').value = '';
