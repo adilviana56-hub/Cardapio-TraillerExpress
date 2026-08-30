@@ -13,11 +13,11 @@ const DATA_FILE = path.join(__dirname, 'cardapio.json');
 const PEDIDOS_FILE = path.join(__dirname, 'pedidos.json');
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 
-// Configurações padrão de entrega
+// Configurações padrão de entrega com o seu endereço em Dourados/MS
 const DEFAULT_CONFIG = {
-  lojaEndereco: "Sua Rua, 123, Seu Bairro, Sua Cidade - MS",
-  lojaLat: -22.2238, // Exemplo: Coordenadas de Dourados/MS (ajuste para sua localização real)
-  lojaLng: -54.8064,
+  lojaEndereco: "Rua Demeciano de Mattos Pereira, 3250 - Jardim Novo Horizonte, Dourados - MS",
+  lojaLat: -22.20389,
+  lojaLng: -54.83296,
   taxaBase: 5.00,       // Valor mínimo de entrega
   valorPorKm: 1.50,      // Valor cobrado por km percorrido
   distanciaMaximaKm: 20 // Limite de entrega em km
@@ -329,3 +329,4 @@ io.on('connection', (socket) => {
 const PORTA = process.env.PORT || 3000;
 server.listen(PORTA, () => {
   console.log(`Servidor rodando com sucesso na porta ${PORTA}`);
+});
