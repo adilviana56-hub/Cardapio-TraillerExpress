@@ -48,6 +48,10 @@
     .carrinho-item-detalhes { font-size: 12px; color: #555; margin-left: 8px; margin-bottom: 6px; }
     .btn-remover-item { background: #dc3545; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
 
+    .resumo-valores { margin-top: 15px; border-top: 2px solid #eee; padding-top: 10px; font-size: 14px; }
+    .linha-resumo { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .linha-total { font-weight: bold; font-size: 16px; color: #cc0000; border-top: 1px dashed #ccc; padding-top: 6px; margin-top: 6px; }
+
     .campo { margin-top: 10px; }
     .campo label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 3px; }
     .campo input, .campo select, .campo textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
@@ -101,8 +105,20 @@
       <p style="color: #888; font-size: 13px;">Seu carrinho está vazio.</p>
     </div>
 
-    <div style="margin-top: 15px; border-top: 2px solid #eee; padding-top: 10px; text-align: right;">
-      <strong>Total Geral: R$ <span id="total-carrinho">0,00</span></strong>
+    <!-- RESUMO DE VALORES -->
+    <div class="resumo-valores">
+      <div class="linha-resumo">
+        <span>Subtotal dos Itens:</span>
+        <span>R$ <span id="subtotal-carrinho">0,00</span></span>
+      </div>
+      <div class="linha-resumo" id="linha-taxa-entrega">
+        <span>Taxa de Entrega:</span>
+        <span style="color: #28a745; font-weight: bold;">R$ <span id="valor-taxa-entrega">5,00</span></span>
+      </div>
+      <div class="linha-resumo linha-total">
+        <span>Total Geral:</span>
+        <span>R$ <span id="total-carrinho">0,00</span></span>
+      </div>
     </div>
 
     <!-- DADOS DO CLIENTE -->
@@ -118,15 +134,26 @@
 
     <div class="campo">
       <label>Tipo de Entrega *</label>
-      <select id="tipo-entrega" onchange="alternarEndereco()">
+      <select id="tipo-entrega" onchange="alternarEntrega()">
         <option value="entrega">Entrega em Domicílio</option>
         <option value="retirada">Retirar no Balcão</option>
       </select>
     </div>
 
+    <!-- SELEÇÃO DA DISTÂNCIA E TAXA -->
+    <div class="campo" id="box-distancia">
+      <label>Distância até seu Endereço (Taxa de Entrega) *</label>
+      <select id="taxa-distancia" onchange="atualizarCarrinho()">
+        <option value="5.00">Até 2 km — R$ 5,00</option>
+        <option value="7.00">De 2 km a 4 km — R$ 7,00</option>
+        <option value="10.00">De 4 km a 6 km — R$ 10,00</option>
+        <option value="13.00">De 6 km a 8 km — R$ 13,00</option>
+      </select>
+    </div>
+
     <div class="campo" id="box-endereco">
-      <label>Endereço Completo *</label>
-      <input type="text" id="cliente-endereco" placeholder="Rua, Número, Bairro">
+      <label>Endereço Completo de Entrega *</label>
+      <input type="text" id="cliente-endereco" placeholder="Rua, Número, Bairro, Ponto de Referência">
     </div>
 
     <div class="campo">
@@ -145,7 +172,7 @@
 
     <div class="campo">
       <label>Observações Gerais do Pedido</label>
-      <textarea id="cliente-obs" rows="2" placeholder="Ex: Entregar na portaria, caprichar no molho..."></textarea>
+      <textarea id="cliente-obs" rows="2" placeholder="Ex: Caprichar no molho caseiro, entregar na portaria..."></textarea>
     </div>
 
     <button id="btn-finalizar-pedido" class="btn-enviar" onclick="enviarPedido()">
@@ -299,7 +326,6 @@
         listaItens.push({ nome: i.nome, qtd: i.qtd, preco: i.preco });
       });
 
-      // Cria um objeto de lanche único
       const novoLanche = {
         idUnico: 'lanche_' + Date.now(),
         tipo: 'lanche_montado',
@@ -346,20 +372,24 @@
 
     function atualizarCarrinho() {
       const container = document.getElementById('itens-carrinho');
+      const subtotalSpan = document.getElementById('subtotal-carrinho');
+      const taxaSpan = document.getElementById('valor-taxa-entrega');
       const totalSpan = document.getElementById('total-carrinho');
 
       if (carrinho.length === 0) {
         container.innerHTML = '<p style="color: #888; font-size: 13px;">Seu carrinho está vazio.</p>';
+        subtotalSpan.innerText = '0,00';
+        taxaSpan.innerText = '0,00';
         totalSpan.innerText = '0,00';
         return;
       }
 
       container.innerHTML = '';
-      let totalGeral = 0;
+      let subtotalItens = 0;
 
       carrinho.forEach(item => {
         if (item.tipo === 'lanche_montado') {
-          totalGeral += item.precoTotal;
+          subtotalItens += item.precoTotal;
           let detalheHtml = item.itens.map(i => `• ${i.qtd}x ${i.nome}`).join('<br>');
 
           container.innerHTML += `
@@ -375,14 +405,14 @@
             </div>
           `;
         } else {
-          const subtotal = item.precoTotal * item.quantidade;
-          totalGeral += subtotal;
+          const sub = item.precoTotal * item.quantidade;
+          subtotalItens += sub;
 
           container.innerHTML += `
             <div class="carrinho-item">
               <div class="carrinho-item-header">
                 <span style="color: #333;">🥤 ${item.quantidade}x ${item.nome}</span>
-                <span>R$ ${subtotal.toFixed(2).replace('.', ',')}</span>
+                <span>R$ ${sub.toFixed(2).replace('.', ',')}</span>
               </div>
               <div style="text-align: right;">
                 <button class="btn-remover-item" onclick="removerItemCarrinho('${item.idUnico}')">🗑️ Remover</button>
@@ -392,12 +422,32 @@
         }
       });
 
+      // CÁLCULO DA TAXA DE ENTREGA
+      const tipoEntrega = document.getElementById('tipo-entrega').value;
+      let valorTaxa = 0;
+
+      if (tipoEntrega === 'entrega') {
+        valorTaxa = parseFloat(document.getElementById('taxa-distancia').value) || 0;
+        document.getElementById('linha-taxa-entrega').style.display = 'flex';
+      } else {
+        document.getElementById('linha-taxa-entrega').style.display = 'none';
+      }
+
+      const totalGeral = subtotalItens + valorTaxa;
+
+      subtotalSpan.innerText = subtotalItens.toFixed(2).replace('.', ',');
+      taxaSpan.innerText = valorTaxa.toFixed(2).replace('.', ',');
       totalSpan.innerText = totalGeral.toFixed(2).replace('.', ',');
     }
 
-    function alternarEndereco() {
+    function alternarEntrega() {
       const tipo = document.getElementById('tipo-entrega').value;
-      document.getElementById('box-endereco').style.display = tipo === 'entrega' ? 'block' : 'none';
+      const ehEntrega = tipo === 'entrega';
+
+      document.getElementById('box-distancia').style.display = ehEntrega ? 'block' : 'none';
+      document.getElementById('box-endereco').style.display = ehEntrega ? 'block' : 'none';
+
+      atualizarCarrinho();
     }
 
     function alternarTroco() {
@@ -412,6 +462,9 @@
       const nome = document.getElementById('cliente-nome').value.trim();
       const whatsapp = document.getElementById('cliente-whatsapp').value.replace(/\D/g, '');
       const tipoEntrega = document.getElementById('tipo-entrega').value;
+      const selectDistancia = document.getElementById('taxa-distancia');
+      const textoDistancia = selectDistancia.options[selectDistancia.selectedIndex].text;
+      const taxaEntrega = tipoEntrega === 'entrega' ? parseFloat(selectDistancia.value) : 0;
       const endereco = document.getElementById('cliente-endereco').value.trim();
       const pagamento = document.getElementById('forma-pagamento').value;
       const troco = document.getElementById('cliente-troco').value;
@@ -421,7 +474,7 @@
       if (!whatsapp || whatsapp.length < 10) return alert('Por favor, insira um número de WhatsApp válido com DDD.');
       if (tipoEntrega === 'entrega' && !endereco) return alert('Por favor, informe o endereço de entrega.');
 
-      let total = 0;
+      let subtotalItens = 0;
       let itensFormatadosSocket = [];
       let textoMsg = `*NOVO PEDIDO - TRAILER EXPRESS*\n`;
       textoMsg += `*Cliente:* ${nome}\n`;
@@ -431,7 +484,7 @@
 
       carrinho.forEach(item => {
         if (item.tipo === 'lanche_montado') {
-          total += item.precoTotal;
+          subtotalItens += item.precoTotal;
           textoMsg += `*🍔 ${item.titulo}* (R$ ${item.precoTotal.toFixed(2)})\n`;
           item.itens.forEach(i => {
             textoMsg += `   └ ${i.qtd}x ${i.nome}\n`;
@@ -444,7 +497,7 @@
           });
         } else {
           const sub = item.precoTotal * item.quantidade;
-          total += sub;
+          subtotalItens += sub;
           textoMsg += `*🥤 ${item.quantidade}x ${item.nome}* - R$ ${sub.toFixed(2)}\n\n`;
 
           itensFormatadosSocket.push({
@@ -454,9 +507,15 @@
         }
       });
 
+      const totalGeral = subtotalItens + taxaEntrega;
+
       textoMsg += `----------------------------\n`;
-      textoMsg += `*Total Geral:* R$ ${total.toFixed(2).replace('.', ',')}\n`;
-      textoMsg += `*Entrega:* ${tipoEntrega.toUpperCase()}\n`;
+      textoMsg += `*Subtotal Itens:* R$ ${subtotalItens.toFixed(2).replace('.', ',')}\n`;
+      if (tipoEntrega === 'entrega') {
+        textoMsg += `*Taxa Entrega:* R$ ${taxaEntrega.toFixed(2).replace('.', ',')} (${textoDistancia})\n`;
+      }
+      textoMsg += `*TOTAL GERAL:* R$ ${totalGeral.toFixed(2).replace('.', ',')}\n\n`;
+      textoMsg += `*Tipo:* ${tipoEntrega.toUpperCase()}\n`;
       if (tipoEntrega === 'entrega') textoMsg += `*Endereço:* ${endereco}\n`;
       textoMsg += `*Pagamento:* ${pagamento.toUpperCase()}\n`;
       if (pagamento === 'dinheiro' && troco) textoMsg += `*Troco para:* R$ ${troco}\n`;
@@ -469,8 +528,11 @@
         cliente: nome,
         whatsapp: whatsapp,
         itens: itensFormatadosSocket,
-        total: total,
+        subtotal: subtotalItens,
+        taxaEntrega: taxaEntrega,
+        total: totalGeral,
         tipoEntrega: tipoEntrega,
+        faixaDistancia: tipoEntrega === 'entrega' ? textoDistancia : 'Retirada',
         endereco: tipoEntrega === 'entrega' ? endereco : 'Retirada no Balcão',
         pagamento: pagamento,
         troco: pagamento === 'dinheiro' ? troco : null,
