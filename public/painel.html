@@ -28,6 +28,7 @@
     .btn-sucesso { background: #28a745; }
     .btn-danger { background: #dc3545; }
     .btn-warning { background: #ffc107; color: #212529; }
+    .btn-imprimir { background: #6c757d; color: white; }
 
     /* Cards de Categorias e Produtos */
     .cat-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 15px; background: #fafafa; }
@@ -45,6 +46,27 @@
     .pedido-card.pendente { border-color: #ffc107; }
     .pedido-card.em_preparo { border-color: #17a2b8; }
     .pedido-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 6px; font-weight: bold; margin-bottom: 8px; }
+
+    /* ESTILO EXCLUSIVO PARA IMPRESSÃO TÉRMICA DE 80MM OU SALVAR EM PDF */
+    @media print {
+      body * { visibility: hidden; }
+      #area-impressao-termica, #area-impressao-termica * { visibility: visible; }
+      #area-impressao-termica {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 78mm;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        color: #000;
+        background: #fff;
+        padding: 4mm;
+      }
+      #area-impressao-termica h2 { text-align: center; font-size: 16px; margin-bottom: 4px; text-transform: uppercase; }
+      #area-impressao-termica p { margin-bottom: 3px; word-break: break-word; }
+      #area-impressao-termica .divisoria { border-top: 1px dashed #000; margin: 6px 0; }
+      #area-impressao-termica .item-cupom { margin-bottom: 4px; }
+    }
   </style>
 </head>
 <body>
@@ -93,10 +115,14 @@
     </div>
   </div>
 
+  <!-- ÁREA INVISÍVEL PARA IMPRESSÃO TÉRMICA 80MM / PDF -->
+  <div id="area-impressao-termica" style="display: none;"></div>
+
   <script>
     const socket = io();
     let lojaAberta = true;
     let cardapioAtual = [];
+    let pedidosAtuais = [];
 
     // OUVIR ESTADO EM TEMPO REAL
     socket.on('atualizarEstado', (data) => {
@@ -107,8 +133,16 @@
       atualizarSelectCategorias();
     });
 
-    socket.on('carregarPedidos', (pedidos) => renderizarPedidos(pedidos));
-    socket.on('atualizarListaPedidos', (pedidos) => renderizarPedidos(pedidos));
+    socket.on('carregarPedidos', (pedidos) => {
+      pedidosAtuais = pedidos || [];
+      renderizarPedidos(pedidosAtuais);
+    });
+
+    socket.on('atualizarListaPedidos', (pedidos) => {
+      pedidosAtuais = pedidos || [];
+      renderizarPedidos(pedidosAtuais);
+    });
+
     socket.on('novoPedido', () => {
       const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
       audio.play().catch(() => {});
@@ -272,15 +306,16 @@
         container.innerHTML += `
           <div class="pedido-card ${p.status}">
             <div class="pedido-header">
-              <span>Pedido #${p.id.toString().slice(-4)} - ${p.cliente} (${p.data})</span>
-              <span>Status: <strong>${p.status.toUpperCase()}</strong></span>
+              <span>Pedido #${p.id.toString().slice(-4)} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
+              <span>Status: <strong>${p.status ? p.status.toUpperCase() : 'PENDENTE'}</strong></span>
             </div>
             <p><strong>Itens:</strong><br>${itensTxt}</p>
-            <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total).toFixed(2)} | <strong>Pagamento:</strong> ${p.pagamento.toUpperCase()}</p>
-            <p><strong>Entrega:</strong> ${p.endereco}</p>
+            <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')} | <strong>Pagamento:</strong> ${(p.pagamento || '').toUpperCase()}</p>
+            <p><strong>Entrega:</strong> ${p.endereco || 'Retirada / Balcão'}</p>
             ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
             
-            <div style="margin-top: 10px; display: flex; gap: 8px;">
+            <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-imprimir" onclick="imprimirPedido(${p.id})">🖨️ Imprimir 80mm / PDF</button>
               ${p.status === 'pendente' ? `<button class="btn btn-sucesso" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">Aceitar / Em Preparo</button>` : ''}
               <button class="btn btn-danger" onclick="removerPedido(${p.id})">Finalizar / Concluir</button>
             </div>
@@ -295,6 +330,47 @@
 
     function removerPedido(id) {
       socket.emit('removerPedido', id);
+    }
+
+    // FUNÇÃO PARA GERAR COMPROVANTE DE IMPRESSÃO (80MM OU SALVAR EM PDF)
+    function imprimirPedido(id) {
+      const p = pedidosAtuais.find(item => item.id === id);
+      if (!p) return alert('Pedido não encontrado!');
+
+      const area = document.getElementById('area-impressao-termica');
+      area.style.display = 'block';
+
+      let itensFormatados = p.itens.map(i => `
+        <div class="item-cupom">
+          <strong>${i.quantidade}x</strong> ${i.nome}
+        </div>
+      `).join('');
+
+      area.innerHTML = `
+        <h2>TRAILER EXPRESS</h2>
+        <div style="text-align: center; font-size: 10px;">Comprovante de Pedido</div>
+        <div class="divisoria"></div>
+        <p><strong>PEDIDO:</strong> #${p.id.toString().slice(-4)} - ${p.data || ''}</p>
+        <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
+        ${p.whatsapp ? `<p><strong>TEL:</strong> ${p.whatsapp}</p>` : ''}
+        <p><strong>ENDEREÇO:</strong> ${p.endereco || 'Retirada'}</p>
+        <div class="divisoria"></div>
+        <p><strong>ITENS SOLICITADOS:</strong></p>
+        ${itensFormatados}
+        <div class="divisoria"></div>
+        <p><strong>PAGAMENTO:</strong> ${(p.pagamento || '').toUpperCase()}</p>
+        ${p.troco ? `<p><strong>TROCO PARA:</strong> R$ ${p.troco}</p>` : ''}
+        <p style="font-size: 14px; margin-top: 4px;"><strong>TOTAL: R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></p>
+        ${p.observacao ? `<div class="divisoria"></div><p><strong>OBS:</strong> ${p.observacao}</p>` : ''}
+        <div class="divisoria"></div>
+        <div style="text-align: center; font-size: 10px; margin-top: 8px;">Obrigado pela preferência! 🍔</div>
+      `;
+
+      window.print();
+
+      setTimeout(() => {
+        area.style.display = 'none';
+      }, 1000);
     }
   </script>
 </body>
