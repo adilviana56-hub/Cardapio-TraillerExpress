@@ -7,91 +7,104 @@
         "nome": "Barbecue no Pão",
         "descricao": "",
         "preco": 1,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076525443,
         "nome": "Alface",
         "descricao": "",
         "preco": 1,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076535891,
         "nome": "Tomate",
         "descricao": "",
         "preco": 1.5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076553445,
         "nome": "Cebola Roxa",
         "descricao": "",
         "preco": 1.5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076563182,
         "nome": "Milho",
         "descricao": "",
         "preco": 1,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076579557,
         "nome": "Batata Palha",
         "descricao": "",
         "preco": 2,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076593013,
         "nome": "Hamburguer Caseiro",
         "descricao": "",
         "preco": 10,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076606317,
         "nome": "Presunto",
         "descricao": "",
         "preco": 2,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076614539,
         "nome": "Mussarela",
         "descricao": "",
         "preco": 3,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076629899,
         "nome": "Salsicha",
         "descricao": "",
         "preco": 3,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076638275,
         "nome": "Ovo Frito",
         "descricao": "",
         "preco": 3,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076657259,
         "nome": "Bacon",
         "descricao": "",
         "preco": 6,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076669931,
         "nome": "Calabresa",
         "descricao": "",
         "preco": 6,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       }
     ]
   },
@@ -103,49 +116,56 @@
         "nome": "Coca Lata",
         "descricao": "330ml",
         "preco": 6,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076840162,
         "nome": "Guarana Lata",
         "descricao": "330ml",
         "preco": 5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076866010,
         "nome": "Cerveja Original Lata",
         "descricao": "330ml",
         "preco": 5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076887330,
         "nome": "Cerveja Brahma Lata",
         "descricao": "330ml",
         "preco": 4.5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076908106,
         "nome": "Cerveja Heineken Longneck",
         "descricao": "350ml",
         "preco": 9,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076931377,
         "nome": "Coca Cola",
         "descricao": "1.5 L",
         "preco": 12,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076952033,
         "nome": "Guarana Antartica",
         "descricao": "1 L",
         "preco": 10,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       }
     ]
   },
@@ -157,28 +177,32 @@
         "nome": "Enroladinho de Salsicha",
         "descricao": "",
         "preco": 4.5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076715298,
         "nome": "Carne",
         "descricao": "",
         "preco": 5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076732370,
         "nome": "Presunto e Mussarela",
         "descricao": "",
         "preco": 5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076743242,
         "nome": "Frango",
         "descricao": "",
         "preco": 5,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       }
     ]
   },
@@ -190,21 +214,24 @@
         "nome": "Bolo de Pote - Brigadeiro",
         "descricao": "",
         "preco": 12,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076775936,
         "nome": "Bolo de Pote - Ninho",
         "descricao": "",
         "preco": 12,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       },
       {
         "id": 1788076808664,
         "nome": "Bolo de Pote - Meio a Meio",
         "descricao": "Brigadeiro e Ninho",
         "preco": 12,
-        "ativo": true
+        "ativo": true,
+        "disponivel": true
       }
     ]
   }
