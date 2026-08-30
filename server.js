@@ -24,7 +24,7 @@ function carregarCardapio() {
   // Cardápio Padrão Inicial
   return [
     {
-      categoria: "Lanche",
+      categoria: "Lanches",
       produtos: [
         { id: 1, nome: "Hambúrguer 150g", descricao: "Carne artesanal grelhada na hora.", preco: 12.00, ativo: true },
         { id: 2, nome: "Bacon Crocante", descricao: "Porção de bacon em fatias.", preco: 5.00, ativo: true }
@@ -141,9 +141,16 @@ io.on('connection', (socket) => {
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // Adicionar Novo Produto
+  // Adicionar Novo Produto (com reconhecimento flexível para "lanche")
   socket.on('adicionarProduto', (novoProduto) => {
-    const cat = dadosCardapio.find(c => c.categoria === novoProduto.categoria);
+    const catEnviada = (novoProduto.categoria || '').trim().toLowerCase();
+    
+    // Busca exata do nome da categoria OU por correspondência flexível se contiver "lanche"
+    const cat = dadosCardapio.find(c => {
+      const catNome = c.categoria.toLowerCase();
+      return catNome === catEnviada || (catEnviada.includes('lanche') && catNome.includes('lanche'));
+    });
+
     if (cat) {
       cat.produtos.push({
         id: Date.now(),
