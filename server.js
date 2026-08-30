@@ -13,11 +13,11 @@ const DATA_FILE = path.join(__dirname, 'cardapio.json');
 const PEDIDOS_FILE = path.join(__dirname, 'pedidos.json');
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 
-// Configurações padrão de entrega com o seu endereço em Dourados/MS
+// Configurações padrão de entrega com as coordenadas exatas do Trailer Express em Dourados/MS
 const DEFAULT_CONFIG = {
-  lojaEndereco: "Rua Demeciano de Mattos Pereira, 3250 - Jardim Novo Horizonte, Dourados - MS",
-  lojaLat: -22.20389,
-  lojaLng: -54.83296,
+  lojaEndereco: "Rua Demeciano de Mattos Pereira, 3250 C - Jardim Novo Horizonte, Dourados - MS",
+  lojaLat: -22.232117,
+  lojaLng: -54.845952,
   taxaBase: 5.00,       // Valor mínimo de entrega
   valorPorKm: 1.50,      // Valor cobrado por km percorrido
   distanciaMaximaKm: 20 // Limite de entrega em km
@@ -173,9 +173,13 @@ io.on('connection', (socket) => {
   socket.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
   socket.emit('carregarPedidos', pedidosAtivos);
 
-  // Evento para calcular taxa via WebSocket
-  socket.on('calcularTaxaEntrega', ({ lat, lng }, callback) => {
+  // Evento para calcular taxa via WebSocket (Suporta envio de { lat, lng } ou objeto direto)
+  socket.on('calcularTaxaEntrega', (coords, callback) => {
+    const lat = coords ? (coords.lat || coords.latitude) : null;
+    const lng = coords ? (coords.lng || coords.longitude) : null;
+
     const resultado = calcularTaxaEntrega(lat, lng);
+
     if (typeof callback === 'function') {
       callback(resultado);
     } else {
