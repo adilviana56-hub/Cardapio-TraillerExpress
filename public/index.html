@@ -67,6 +67,8 @@
   <div class="header-loja">
     <img src="logo.png" alt="Trailer Express" class="logo-img">
     <h2>Trailer Express</h2>
+    <p style="font-size: 14px; color: #555; margin-top: 2px; font-weight: bold;">67 9 9143-8502</p>
+    <p style="font-size: 12px; color: #666; margin-top: 2px;">Rua Demeciano de Mattos Pereira, 3250 C (Na avenida) - Jd. Novo Horizonte</p>
     <div id="badge-status" class="status-badge status-aberto">ABERTO</div>
   </div>
 
@@ -457,7 +459,7 @@
           subtotalItens += item.precoTotal;
           textoMsg += `*🍔 ${item.titulo}* (R$ ${item.precoTotal.toFixed(2)})\n`;
           item.itens.forEach(i => {
-            textoMsg += `   └ ${i.qtd}x ${i.nome}\n`;
+            textoMsg += `    └ ${i.qtd}x ${i.nome}\n`;
           });
           textoMsg += `\n`;
 
