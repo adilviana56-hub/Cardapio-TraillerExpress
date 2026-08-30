@@ -126,10 +126,16 @@
     let cardapioAtual = [];
     let pedidosAtuais = [];
 
+    // Helper para verificar disponibilidade do produto de forma segura
+    function produtoEstaAtivo(p) {
+      if (p.ativo === false || p.disponivel === false) return false;
+      return true;
+    }
+
     // OUVIR ESTADO EM TEMPO REAL
     socket.on('atualizarEstado', (data) => {
       lojaAberta = data.lojaAberta;
-      cardapioAtual = data.cardapio;
+      cardapioAtual = data.cardapio || [];
       atualizarBotaoLoja();
       renderizarCardapio();
       atualizarSelectCategorias();
@@ -203,10 +209,11 @@
             </div>
         `;
 
-        if (cat.produtos.length === 0) {
+        if (!cat.produtos || cat.produtos.length === 0) {
           html += `<p style="font-size: 13px; color: #999;">Nenhum produto nesta categoria.</p>`;
         } else {
           cat.produtos.forEach(p => {
+            const ativo = produtoEstaAtivo(p);
             html += `
               <div class="item-produto">
                 <div class="item-info">
@@ -215,8 +222,8 @@
                 </div>
                 <div class="item-acoes">
                   <button class="btn btn-warning" style="padding: 5px 8px; font-size: 12px;" onclick="editarProduto(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, '${(p.descricao || '').replace(/'/g, "\\'")}')">✏️ Editar</button>
-                  <button class="btn ${p.ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id}, ${!p.ativo})">
-                    ${p.ativo ? 'Disponível' : 'Esgotado'}
+                  <button class="btn ${ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id}, ${!ativo})">
+                    ${ativo ? 'Disponível' : 'Esgotado'}
                   </button>
                   <button class="btn btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="excluirProduto(${p.id})">🗑️</button>
                 </div>
@@ -263,7 +270,8 @@
         return alert('Preencha a Categoria, Nome e Preço!');
       }
 
-      socket.emit('adicionarProduto', { categoria, nome, preco, descricao });
+      // Envia explicitamente ativo e disponivel como true
+      socket.emit('adicionarProduto', { categoria, nome, preco: parseFloat(preco), descricao, ativo: true, disponivel: true });
 
       document.getElementById('prod-nome').value = '';
       document.getElementById('prod-preco').value = '';
@@ -288,8 +296,9 @@
       socket.emit('editarProduto', { idProduto, nome: novoNome, preco: novoPreco, descricao: novaDesc });
     }
 
-    function toggleProduto(idProduto, disponivel) {
-      socket.emit('mudarStatusProduto', { idProduto, disponivel });
+    function toggleProduto(idProduto, statusNovo) {
+      // Envia tanto disponivel quanto ativo para garantir compatibilidade com o backend
+      socket.emit('mudarStatusProduto', { idProduto, disponivel: statusNovo, ativo: statusNovo });
     }
 
     function excluirProduto(idProduto) {
@@ -350,17 +359,14 @@
       socket.emit('alterarStatusPedido', { id, status });
     }
 
-    // AÇÃO EXCLUSIVA PARA ENVIAR A MENSAGEM NO WHATSAPP E MUDAR O STATUS
     function notificarSaiuEntrega(id) {
       const pedido = pedidosAtuais.find(p => p.id === id);
       if (!pedido) return;
 
-      // Atualiza o status local e no servidor
       pedido.status = 'saiu_entrega';
       renderizarPedidos(pedidosAtuais);
       socket.emit('alterarStatusPedido', { id, status: 'saiu_entrega' });
 
-      // Identifica o número (aceita p.whatsapp ou p.telefone)
       const numOriginal = pedido.whatsapp || pedido.telefone || '';
       
       if (numOriginal) {
@@ -368,7 +374,6 @@
         const numFormatado = numLimpo.startsWith('55') ? numLimpo : `55${numLimpo}`;
         const mensagem = encodeURIComponent(`Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} do Trailer Express acabou de sair para entrega!`);
         
-        // Abre o WhatsApp com a mensagem preenchida
         window.open(`https://api.whatsapp.com/send?phone=${numFormatado}&text=${mensagem}`, '_blank');
       } else {
         alert('Este pedido não possui um número de WhatsApp cadastrado!');
@@ -383,7 +388,6 @@
       }
     }
 
-    // FUNÇÃO PARA IMPRESSÃO TÉRMICA 80MM / PDF
     function imprimirPedido(id) {
       const p = pedidosAtuais.find(item => item.id === id);
       if (!p) return alert('Pedido não encontrado!');
