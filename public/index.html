@@ -197,9 +197,15 @@
 
     let dadosCardapioGlobal = [];
 
+    // Função utilitária para verificar se o produto está ativo no sistema
+    function isProdutoAtivo(p) {
+      if (p.ativo === false || p.disponivel === false) return false;
+      return true;
+    }
+
     socket.on('atualizarEstado', (data) => {
       lojaAberta = data.lojaAberta;
-      dadosCardapioGlobal = data.cardapio;
+      dadosCardapioGlobal = data.cardapio || [];
 
       const badge = document.getElementById('badge-status');
       const btnEnviar = document.getElementById('btn-finalizar-pedido');
@@ -214,10 +220,12 @@
         btnEnviar.disabled = true;
       }
 
-      renderizarInterface(data.cardapio);
+      renderizarInterface(dadosCardapioGlobal);
     });
 
     function renderizarInterface(cardapio) {
+      if (!Array.isArray(cardapio)) return;
+
       const areaMontagem = document.getElementById('area-montagem-lanche');
       const containerOutros = document.getElementById('cardapio-outros-container');
       const containerIngredientes = document.getElementById('lista-ingredientes-lanche');
@@ -225,38 +233,46 @@
       containerOutros.innerHTML = '';
       containerIngredientes.innerHTML = '';
 
-      let catLanches = cardapio.find(c => c.categoria.toLowerCase().includes('lanche'));
+      // Busca por categoria "lanche" ou "lanches" de forma insensível a maiúsculas/minúsculas
+      let catLanches = cardapio.find(c => c.categoria && c.categoria.toLowerCase().includes('lanche'));
 
-      if (catLanches && catLanches.produtos.length > 0) {
-        areaMontagem.style.display = 'block';
+      if (catLanches && catLanches.produtos && catLanches.produtos.length > 0) {
+        const produtosValidos = catLanches.produtos.filter(p => isProdutoAtivo(p));
 
-        catLanches.produtos.filter(p => p.ativo).forEach(p => {
-          const ingExistente = lancheEmMontagem.ingredientes.find(i => i.id === p.id);
-          const qtd = ingExistente ? ingExistente.qtd : 0;
+        if (produtosValidos.length > 0) {
+          areaMontagem.style.display = 'block';
 
-          containerIngredientes.innerHTML += `
-            <div class="ingrediente-item">
-              <div>
-                <strong>${p.nome}</strong>
-                <div style="color: #28a745; font-size: 12px; font-weight: bold;">+ R$ ${Number(p.preco).toFixed(2).replace('.', ',')}</div>
-                ${p.descricao ? `<p style="font-size: 11px; color: #777;">${p.descricao}</p>` : ''}
+          produtosValidos.forEach(p => {
+            const ingExistente = lancheEmMontagem.ingredientes.find(i => i.id === p.id);
+            const qtd = ingExistente ? ingExistente.qtd : 0;
+
+            containerIngredientes.innerHTML += `
+              <div class="ingrediente-item">
+                <div>
+                  <strong>${p.nome}</strong>
+                  <div style="color: #28a745; font-size: 12px; font-weight: bold;">+ R$ ${Number(p.preco).toFixed(2).replace('.', ',')}</div>
+                  ${p.descricao ? `<p style="font-size: 11px; color: #777;">${p.descricao}</p>` : ''}
+                </div>
+                <div class="btn-ing-qtd">
+                  <button onclick="alterarIngrediente(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, -1)" ${!lojaAberta ? 'disabled' : ''}>-</button>
+                  <span style="font-weight: bold; font-size: 14px;">${qtd}</span>
+                  <button onclick="alterarIngrediente(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, 1)" ${!lojaAberta ? 'disabled' : ''}>+</button>
+                </div>
               </div>
-              <div class="btn-ing-qtd">
-                <button onclick="alterarIngrediente(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, -1)" ${!lojaAberta ? 'disabled' : ''}>-</button>
-                <span style="font-weight: bold; font-size: 14px;">${qtd}</span>
-                <button onclick="alterarIngrediente(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, 1)" ${!lojaAberta ? 'disabled' : ''}>+</button>
-              </div>
-            </div>
-          `;
-        });
+            `;
+          });
+        } else {
+          areaMontagem.style.display = 'none';
+        }
       } else {
         areaMontagem.style.display = 'none';
       }
 
+      // Renderiza bebidas, porções, sobremesas, etc.
       cardapio.forEach(cat => {
-        if (cat.categoria.toLowerCase().includes('lanche')) return;
+        if (cat.categoria && cat.categoria.toLowerCase().includes('lanche')) return;
 
-        const produtosAtivos = cat.produtos.filter(p => p.ativo);
+        const produtosAtivos = cat.produtos ? cat.produtos.filter(p => isProdutoAtivo(p)) : [];
         if (produtosAtivos.length === 0) return;
 
         let html = `<div class="categoria-titulo">${cat.categoria}</div>`;
