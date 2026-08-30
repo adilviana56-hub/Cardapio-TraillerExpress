@@ -13,14 +13,14 @@ const DATA_FILE = path.join(__dirname, 'cardapio.json');
 const PEDIDOS_FILE = path.join(__dirname, 'pedidos.json');
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 
-// Configurações padrão de entrega com as coordenadas exatas do Trailer Express em Dourados/MS
+// Configurações padrão de entrega
 const DEFAULT_CONFIG = {
   lojaEndereco: "Rua Demeciano de Mattos Pereira, 3250 C - Jardim Novo Horizonte, Dourados - MS",
   lojaLat: -22.232117,
   lojaLng: -54.845952,
-  taxaBase: 6.00,       // Valor mínimo de entrega (atualizado para R$ 6,00)
-  valorPorKm: 1.50,      // Valor cobrado por km percorrido
-  distanciaMaximaKm: 20 // Limite de entrega em km
+  taxaBase: 6.00,
+  valorPorKm: 1.50,
+  distanciaMaximaKm: 20
 };
 
 function carregarConfig() {
@@ -45,9 +45,8 @@ function salvarConfig() {
 
 let configLoja = carregarConfig();
 
-// Função para calcular distância entre duas coordenadas (Fórmula de Haversine com ajuste para malha viária)
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Raio da Terra em km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
@@ -55,13 +54,9 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
     Math.sin(dLon/2) * Math.sin(dLon/2); 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  const distanciaLinhaReta = R * c;
-  
-  // Fator 1.30 estimando curvas, trajetos e ruas
-  return distanciaLinhaReta * 1.30;
+  return R * c * 1.30;
 }
 
-// Função para calcular a taxa de entrega baseada na localização e forma de pagamento
 function calcularTaxaEntrega(clienteLat, clienteLng, formaPagamento = '') {
   if (!clienteLat || !clienteLng) {
     return { erro: "Coordenadas do cliente não informadas." };
@@ -77,10 +72,8 @@ function calcularTaxaEntrega(clienteLat, clienteLng, formaPagamento = '') {
     };
   }
 
-  // Cálculo da taxa: Taxa base + (Distância * Valor por Km)
   let taxaCalculada = configLoja.taxaBase + (distanciaKm * configLoja.valorPorKm);
 
-  // Verifica se a forma de pagamento é cartão e adiciona R$ 2,00 para taxa de retorno
   const pagamentoStr = String(formaPagamento).toLowerCase();
   const pagamentoCartao = pagamentoStr.includes('cartao') || 
                           pagamentoStr.includes('cartão') ||
@@ -101,12 +94,14 @@ function calcularTaxaEntrega(clienteLat, clienteLng, formaPagamento = '') {
   };
 }
 
-// Função para carregar o cardápio do arquivo JSON
 function carregarCardapio() {
   if (fs.existsSync(DATA_FILE)) {
     try {
       const data = fs.readFileSync(DATA_FILE, 'utf8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
     } catch (err) {
       console.error("Erro ao ler cardapio.json, usando padrão:", err);
     }
@@ -128,7 +123,6 @@ function carregarCardapio() {
   ];
 }
 
-// Função para carregar pedidos salvos do arquivo JSON
 function carregarPedidos() {
   if (fs.existsSync(PEDIDOS_FILE)) {
     try {
@@ -141,7 +135,6 @@ function carregarPedidos() {
   return [];
 }
 
-// Funções para salvar os arquivos JSON
 function salvarCardapio() {
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(dadosCardapio, null, 2), 'utf8');
@@ -158,12 +151,10 @@ function salvarPedidos() {
   }
 }
 
-// Inicialização das variáveis em memória
 let dadosCardapio = carregarCardapio();
 let pedidosAtivos = carregarPedidos();
 let lojaAberta = true;
 
-// Servir arquivos estáticos da pasta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
@@ -175,7 +166,6 @@ app.get('/painel', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'painel.html'));
 });
 
-// Endpoint ou Socket para calcular taxa de entrega
 app.post('/api/calcular-taxa', (req, res) => {
   const { lat, lng, formaPagamento } = req.body;
   const resultado = calcularTaxaEntrega(lat, lng, formaPagamento);
@@ -183,11 +173,10 @@ app.post('/api/calcular-taxa', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  // Envia o estado atualizado do cardápio e pedidos ao conectar
+  // Transmite o estado completo ao conectar
   socket.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
   socket.emit('carregarPedidos', pedidosAtivos);
 
-  // Evento para calcular taxa via WebSocket (Suporta envio de { lat, lng, formaPagamento } ou objeto direto)
   socket.on('calcularTaxaEntrega', (coords, callback) => {
     const lat = coords ? (coords.lat || coords.latitude) : null;
     const lng = coords ? (coords.lng || coords.longitude) : null;
@@ -202,30 +191,29 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Atualizar configurações de entrega
   socket.on('atualizarConfigEntrega', (novasConfigs) => {
     configLoja = { ...configLoja, ...novasConfigs };
     salvarConfig();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
   });
 
-  // Status da Loja (Aberto/Fechado)
   socket.on('mudarStatusLoja', (status) => {
     lojaAberta = status;
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // Ativar ou Desativar Produto
   socket.on('mudarStatusProduto', ({ idProduto, disponivel }) => {
     dadosCardapio.forEach(cat => {
       const prod = cat.produtos.find(p => p.id === idProduto);
-      if (prod) prod.ativo = disponivel;
+      if (prod) {
+        prod.ativo = disponivel;
+        prod.disponivel = disponivel; // Suporta ambas as nomenclaturas no front
+      }
     });
     salvarCardapio();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // EDITAR PRODUTO (NOME, PREÇO, DESCRIÇÃO)
   socket.on('editarProduto', ({ idProduto, nome, preco, descricao }) => {
     dadosCardapio.forEach(cat => {
       const prod = cat.produtos.find(p => p.id === idProduto);
@@ -233,13 +221,13 @@ io.on('connection', (socket) => {
         if (nome) prod.nome = nome.trim();
         if (preco !== undefined && !isNaN(preco)) prod.preco = parseFloat(preco);
         if (descricao !== undefined) prod.descricao = descricao.trim();
+        if (prod.ativo === undefined) prod.ativo = true;
       }
     });
     salvarCardapio();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // EXCLUIR PRODUTO
   socket.on('excluirProduto', (idProduto) => {
     dadosCardapio.forEach(cat => {
       cat.produtos = cat.produtos.filter(p => p.id !== idProduto);
@@ -248,7 +236,6 @@ io.on('connection', (socket) => {
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // Adicionar Nova Categoria
   socket.on('adicionarCategoria', (nomeCategoria) => {
     const nomeLimpo = nomeCategoria.trim();
     if (nomeLimpo !== "") {
@@ -261,7 +248,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Editar Nome de Categoria
   socket.on('editarCategoria', ({ nomeAntigo, novoNome }) => {
     const nomeLimpo = novoNome.trim();
     if (nomeLimpo !== "") {
@@ -274,45 +260,44 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Excluir Categoria
   socket.on('excluirCategoria', (nomeCategoria) => {
     dadosCardapio = dadosCardapio.filter(c => c.categoria !== nomeCategoria);
     salvarCardapio();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // Adicionar Novo Produto
+  // ADICIONAR PRODUTO CORRIGIDO (Cria a categoria se ela não existir)
   socket.on('adicionarProduto', (novoProduto) => {
-    const catEnviada = (novoProduto.categoria || '').trim().toLowerCase();
+    const catEnviada = (novoProduto.categoria || '').trim();
     
-    const cat = dadosCardapio.find(c => {
-      const catNome = c.categoria.toLowerCase();
-      return catNome === catEnviada || (catEnviada.includes('lanche') && catNome.includes('lanche'));
+    let cat = dadosCardapio.find(c => c.categoria.toLowerCase() === catEnviada.toLowerCase());
+
+    // Se a categoria informada não for encontrada, cria ela automaticamente
+    if (!cat) {
+      const nomeCatNova = catEnviada || "Outros";
+      cat = { categoria: nomeCatNova, produtos: [] };
+      dadosCardapio.push(cat);
+    }
+
+    cat.produtos.push({
+      id: Date.now(),
+      nome: novoProduto.nome,
+      descricao: novoProduto.descricao || '',
+      preco: parseFloat(novoProduto.preco),
+      ativo: true,
+      disponivel: true
     });
 
-    if (cat) {
-      cat.produtos.push({
-        id: Date.now(),
-        nome: novoProduto.nome,
-        descricao: novoProduto.descricao || '',
-        preco: parseFloat(novoProduto.preco),
-        ativo: true
-      });
-      salvarCardapio();
-      io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
-    }
+    salvarCardapio();
+    io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // GESTÃO DE PEDIDOS (COM PERSISTÊNCIA E NOTIFICAÇÃO DE SAÍDA)
   socket.on('novoPedido', (pedido) => {
     if (!pedido.id) pedido.id = Date.now();
     pedido.status = 'pendente';
-    
-    // Insere no início para o mais recente ficar no topo
     pedidosAtivos.unshift(pedido);
     salvarPedidos();
 
-    // Emite para o painel em tempo real
     io.emit('novoPedido', pedido);
     io.emit('atualizarListaPedidos', pedidosAtivos);
   });
@@ -323,10 +308,8 @@ io.on('connection', (socket) => {
       pedido.status = status;
       salvarPedidos();
 
-      // Notifica o cliente via socket caso a página dele esteja escutando
       if (status === 'saiu_entrega') {
         const mensagemWhats = `Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} acabou de sair para entrega!`;
-        
         io.emit('notificacaoCliente', {
           pedidoId: id,
           status: 'saiu_entrega',
