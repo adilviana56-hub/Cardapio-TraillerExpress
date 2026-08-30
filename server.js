@@ -11,6 +11,81 @@ const io = new Server(server);
 // Caminhos dos arquivos de dados persistentes
 const DATA_FILE = path.join(__dirname, 'cardapio.json');
 const PEDIDOS_FILE = path.join(__dirname, 'pedidos.json');
+const CONFIG_FILE = path.join(__dirname, 'config.json');
+
+// Configurações padrão de entrega
+const DEFAULT_CONFIG = {
+  lojaEndereco: "Sua Rua, 123, Seu Bairro, Sua Cidade - MS",
+  lojaLat: -22.2238, // Exemplo: Coordenadas de Dourados/MS (ajuste para sua localização real)
+  lojaLng: -54.8064,
+  taxaBase: 5.00,       // Valor mínimo de entrega
+  valorPorKm: 1.50,      // Valor cobrado por km percorrido
+  distanciaMaximaKm: 20 // Limite de entrega em km
+};
+
+function carregarConfig() {
+  if (fs.existsSync(CONFIG_FILE)) {
+    try {
+      const data = fs.readFileSync(CONFIG_FILE, 'utf8');
+      return { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+    } catch (err) {
+      console.error("Erro ao ler config.json, usando padrão:", err);
+    }
+  }
+  return DEFAULT_CONFIG;
+}
+
+function salvarConfig() {
+  try {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(configLoja, null, 2), 'utf8');
+  } catch (err) {
+    console.error("Erro ao salvar config.json:", err);
+  }
+}
+
+let configLoja = carregarConfig();
+
+// Função para calcular distância entre duas coordenadas (Fórmula de Haversine com ajuste para malha viária)
+function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Raio da Terra em km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  const distanciaLinhaReta = R * c;
+  
+  // Fator 1.30 estimando curvas, trajetos e ruas
+  return distanciaLinhaReta * 1.30;
+}
+
+// Função para calcular a taxa de entrega baseada na localização
+function calcularTaxaEntrega(clienteLat, clienteLng) {
+  if (!clienteLat || !clienteLng) {
+    return { erro: "Coordenadas do cliente não informadas." };
+  }
+
+  const distanciaKm = calcularDistanciaKm(configLoja.lojaLat, configLoja.lojaLng, clienteLat, clienteLng);
+
+  if (distanciaKm > configLoja.distanciaMaximaKm) {
+    return { 
+      entregavel: false, 
+      distanciaKm: parseFloat(distanciaKm.toFixed(2)),
+      mensagem: `Endereço fora da área de entrega (Máximo ${configLoja.distanciaMaximaKm} km).` 
+    };
+  }
+
+  // Cálculo da taxa: Taxa base + (Distância * Valor por Km)
+  const taxaCalculada = configLoja.taxaBase + (distanciaKm * configLoja.valorPorKm);
+  
+  return {
+    entregavel: true,
+    distanciaKm: parseFloat(distanciaKm.toFixed(2)),
+    taxaEntrega: parseFloat(taxaCalculada.toFixed(2))
+  };
+}
 
 // Função para carregar o cardápio do arquivo JSON
 function carregarCardapio() {
@@ -76,6 +151,7 @@ let lojaAberta = true;
 
 // Servir arquivos estáticos da pasta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -85,10 +161,34 @@ app.get('/painel', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'painel.html'));
 });
 
+// Endpoint ou Socket para calcular taxa de entrega
+app.post('/api/calcular-taxa', (req, res) => {
+  const { lat, lng } = req.body;
+  const resultado = calcularTaxaEntrega(lat, lng);
+  res.json(resultado);
+});
+
 io.on('connection', (socket) => {
   // Envia o estado atualizado do cardápio e pedidos ao conectar
-  socket.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
+  socket.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
   socket.emit('carregarPedidos', pedidosAtivos);
+
+  // Evento para calcular taxa via WebSocket
+  socket.on('calcularTaxaEntrega', ({ lat, lng }, callback) => {
+    const resultado = calcularTaxaEntrega(lat, lng);
+    if (typeof callback === 'function') {
+      callback(resultado);
+    } else {
+      socket.emit('resultadoTaxaEntrega', resultado);
+    }
+  });
+
+  // Atualizar configurações de entrega
+  socket.on('atualizarConfigEntrega', (novasConfigs) => {
+    configLoja = { ...configLoja, ...novasConfigs };
+    salvarConfig();
+    io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
+  });
 
   // Status da Loja (Aberto/Fechado)
   socket.on('mudarStatusLoja', (status) => {
@@ -206,7 +306,7 @@ io.on('connection', (socket) => {
 
       // Notifica o cliente via socket caso a página dele esteja escutando
       if (status === 'saiu_entrega') {
-        const mensagemWhats = `Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} do Trailer Express acabou de sair para entrega!`;
+        const mensagemWhats = `Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} acabou de sair para entrega!`;
         
         io.emit('notificacaoCliente', {
           pedidoId: id,
@@ -229,4 +329,3 @@ io.on('connection', (socket) => {
 const PORTA = process.env.PORT || 3000;
 server.listen(PORTA, () => {
   console.log(`Servidor rodando com sucesso na porta ${PORTA}`);
-});
