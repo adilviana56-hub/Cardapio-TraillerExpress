@@ -52,6 +52,8 @@
     .linha-resumo { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .linha-total { font-weight: bold; font-size: 16px; color: #cc0000; border-top: 1px dashed #ccc; padding-top: 6px; margin-top: 6px; }
 
+    .aviso-taxa-entrega { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px; padding: 10px; font-size: 12px; margin-top: 8px; }
+
     .campo { margin-top: 10px; }
     .campo label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 3px; }
     .campo input, .campo select, .campo textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
@@ -108,15 +110,15 @@
     <!-- RESUMO DE VALORES -->
     <div class="resumo-valores">
       <div class="linha-resumo">
-        <span>Subtotal dos Itens:</span>
+        <span>Subtotal dos Produtos:</span>
         <span>R$ <span id="subtotal-carrinho">0,00</span></span>
       </div>
       <div class="linha-resumo" id="linha-taxa-entrega">
         <span>Taxa de Entrega:</span>
-        <span style="color: #28a745; font-weight: bold;">R$ <span id="valor-taxa-entrega">5,00</span></span>
+        <span style="color: #856404; font-weight: bold;" id="txt-status-taxa">A informar via WhatsApp</span>
       </div>
       <div class="linha-resumo linha-total">
-        <span>Total Geral:</span>
+        <span>Total dos Itens:</span>
         <span>R$ <span id="total-carrinho">0,00</span></span>
       </div>
     </div>
@@ -140,20 +142,14 @@
       </select>
     </div>
 
-    <!-- SELEÇÃO DA DISTÂNCIA E TAXA -->
-    <div class="campo" id="box-distancia">
-      <label>Distância até seu Endereço (Taxa de Entrega) *</label>
-      <select id="taxa-distancia" onchange="atualizarCarrinho()">
-        <option value="5.00">Até 2 km — R$ 5,00</option>
-        <option value="7.00">De 2 km a 4 km — R$ 7,00</option>
-        <option value="10.00">De 4 km a 6 km — R$ 10,00</option>
-        <option value="13.00">De 6 km a 8 km — R$ 13,00</option>
-      </select>
+    <!-- AVISO DE TAXA DE ENTREGA -->
+    <div class="aviso-taxa-entrega" id="box-aviso-taxa">
+      🛵 <strong>Taxa de Entrega:</strong> O valor da taxa de entrega será informado diretamente no seu WhatsApp de acordo com o seu endereço.
     </div>
 
     <div class="campo" id="box-endereco">
       <label>Endereço Completo de Entrega *</label>
-      <input type="text" id="cliente-endereco" placeholder="Rua, Número, Bairro, Ponto de Referência">
+      <input type="text" id="cliente-endereco" placeholder="Rua, Número, Bairro e Ponto de Referência">
     </div>
 
     <div class="campo">
@@ -182,16 +178,15 @@
 
   <script>
     const socket = io();
-    let carrinho = []; // Lista de todos os itens do pedido
+    let carrinho = [];
     let lojaAberta = true;
     let contadorLanches = 1;
 
     // BASE OBRIGATÓRIA PARA LANCHE
     const PAO_BASE = { nome: 'Pão com Maionese Caseira', preco: 6.00 };
 
-    // Estrutura do Lanche que está sendo montado no momento
     let lancheEmMontagem = {
-      ingredientes: [] // array de { id, nome, preco, qtd }
+      ingredientes: []
     };
 
     let dadosCardapioGlobal = [];
@@ -226,7 +221,6 @@
 
       let catLanches = cardapio.find(c => c.categoria.toLowerCase().includes('lanche'));
 
-      // 1. RENDERIZA A ÁREA DE MONTAGEM SE HOUVER CATEGORIA DE LANCHES
       if (catLanches && catLanches.produtos.length > 0) {
         areaMontagem.style.display = 'block';
 
@@ -253,7 +247,6 @@
         areaMontagem.style.display = 'none';
       }
 
-      // 2. RENDERIZA OUTRAS CATEGORIAS (BEBIDAS, SOBREMESAS, ETC)
       cardapio.forEach(cat => {
         if (cat.categoria.toLowerCase().includes('lanche')) return;
 
@@ -281,7 +274,6 @@
       atualizarResumoLancheEmMontagem();
     }
 
-    // ALTERA QUANTIDADE DE INGREDIENTES NO LANCHE ATUAL
     function alterarIngrediente(id, nome, preco, delta) {
       let item = lancheEmMontagem.ingredientes.find(i => i.id === id);
 
@@ -314,7 +306,6 @@
       document.getElementById('numero-lanche-txt').innerText = `Lanche nº ${contadorLanches}`;
     }
 
-    // ADICIONA O LANCHE ATUALMENTE MONTADO AO CARRINHO E RESETA O PAINEL DE MONTAGEM
     function salvarLancheAtualNoCarrinho() {
       if (!lojaAberta) return alert('A loja está fechada!');
 
@@ -337,7 +328,6 @@
       carrinho.push(novoLanche);
       contadorLanches++;
 
-      // Reseta a montagem para o próximo lanche
       lancheEmMontagem = { ingredientes: [] };
       renderizarInterface(dadosCardapioGlobal);
       atualizarCarrinho();
@@ -345,7 +335,6 @@
       alert(`✅ Lanche #${contadorLanches - 1} adicionado ao seu pedido! Você já pode montar outro lanche se desejar.`);
     }
 
-    // ADICIONA OUTROS PRODUTOS (BEBIDAS, ETC)
     function adicionarOutroItem(id, nome, preco) {
       if (!lojaAberta) return alert('A loja está fechada!');
 
@@ -364,7 +353,6 @@
       atualizarCarrinho();
     }
 
-    // REMOVER ITEM DO CARRINHO
     function removerItemCarrinho(idUnico) {
       carrinho = carrinho.filter(i => i.idUnico !== idUnico);
       atualizarCarrinho();
@@ -373,13 +361,11 @@
     function atualizarCarrinho() {
       const container = document.getElementById('itens-carrinho');
       const subtotalSpan = document.getElementById('subtotal-carrinho');
-      const taxaSpan = document.getElementById('valor-taxa-entrega');
       const totalSpan = document.getElementById('total-carrinho');
 
       if (carrinho.length === 0) {
         container.innerHTML = '<p style="color: #888; font-size: 13px;">Seu carrinho está vazio.</p>';
         subtotalSpan.innerText = '0,00';
-        taxaSpan.innerText = '0,00';
         totalSpan.innerText = '0,00';
         return;
       }
@@ -422,30 +408,17 @@
         }
       });
 
-      // CÁLCULO DA TAXA DE ENTREGA
-      const tipoEntrega = document.getElementById('tipo-entrega').value;
-      let valorTaxa = 0;
-
-      if (tipoEntrega === 'entrega') {
-        valorTaxa = parseFloat(document.getElementById('taxa-distancia').value) || 0;
-        document.getElementById('linha-taxa-entrega').style.display = 'flex';
-      } else {
-        document.getElementById('linha-taxa-entrega').style.display = 'none';
-      }
-
-      const totalGeral = subtotalItens + valorTaxa;
-
       subtotalSpan.innerText = subtotalItens.toFixed(2).replace('.', ',');
-      taxaSpan.innerText = valorTaxa.toFixed(2).replace('.', ',');
-      totalSpan.innerText = totalGeral.toFixed(2).replace('.', ',');
+      totalSpan.innerText = subtotalItens.toFixed(2).replace('.', ',');
     }
 
     function alternarEntrega() {
       const tipo = document.getElementById('tipo-entrega').value;
       const ehEntrega = tipo === 'entrega';
 
-      document.getElementById('box-distancia').style.display = ehEntrega ? 'block' : 'none';
+      document.getElementById('box-aviso-taxa').style.display = ehEntrega ? 'block' : 'none';
       document.getElementById('box-endereco').style.display = ehEntrega ? 'block' : 'none';
+      document.getElementById('linha-taxa-entrega').style.display = ehEntrega ? 'flex' : 'none';
 
       atualizarCarrinho();
     }
@@ -462,9 +435,6 @@
       const nome = document.getElementById('cliente-nome').value.trim();
       const whatsapp = document.getElementById('cliente-whatsapp').value.replace(/\D/g, '');
       const tipoEntrega = document.getElementById('tipo-entrega').value;
-      const selectDistancia = document.getElementById('taxa-distancia');
-      const textoDistancia = selectDistancia.options[selectDistancia.selectedIndex].text;
-      const taxaEntrega = tipoEntrega === 'entrega' ? parseFloat(selectDistancia.value) : 0;
       const endereco = document.getElementById('cliente-endereco').value.trim();
       const pagamento = document.getElementById('forma-pagamento').value;
       const troco = document.getElementById('cliente-troco').value;
@@ -507,14 +477,12 @@
         }
       });
 
-      const totalGeral = subtotalItens + taxaEntrega;
-
       textoMsg += `----------------------------\n`;
-      textoMsg += `*Subtotal Itens:* R$ ${subtotalItens.toFixed(2).replace('.', ',')}\n`;
+      textoMsg += `*Subtotal dos Itens:* R$ ${subtotalItens.toFixed(2).replace('.', ',')}\n`;
       if (tipoEntrega === 'entrega') {
-        textoMsg += `*Taxa Entrega:* R$ ${taxaEntrega.toFixed(2).replace('.', ',')} (${textoDistancia})\n`;
+        textoMsg += `*Taxa de Entrega:* A informar no WhatsApp\n`;
       }
-      textoMsg += `*TOTAL GERAL:* R$ ${totalGeral.toFixed(2).replace('.', ',')}\n\n`;
+      textoMsg += `*TOTAL DOS ITENS:* R$ ${subtotalItens.toFixed(2).replace('.', ',')}\n\n`;
       textoMsg += `*Tipo:* ${tipoEntrega.toUpperCase()}\n`;
       if (tipoEntrega === 'entrega') textoMsg += `*Endereço:* ${endereco}\n`;
       textoMsg += `*Pagamento:* ${pagamento.toUpperCase()}\n`;
@@ -529,10 +497,9 @@
         whatsapp: whatsapp,
         itens: itensFormatadosSocket,
         subtotal: subtotalItens,
-        taxaEntrega: taxaEntrega,
-        total: totalGeral,
+        taxaEntrega: 'A combinar',
+        total: subtotalItens,
         tipoEntrega: tipoEntrega,
-        faixaDistancia: tipoEntrega === 'entrega' ? textoDistancia : 'Retirada',
         endereco: tipoEntrega === 'entrega' ? endereco : 'Retirada no Balcão',
         pagamento: pagamento,
         troco: pagamento === 'dinheiro' ? troco : null,
@@ -541,13 +508,11 @@
         status: 'pendente'
       };
 
-      // EMITE VIA SOCKET PARA O PAINEL
       socket.emit('novoPedido', pedido);
 
       const numeroLoja = "5567991438502";
       const urlWhatsapp = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(textoMsg)}`;
 
-      // LIMPA O CARRINHO
       carrinho = [];
       contadorLanches = 1;
       lancheEmMontagem = { ingredientes: [] };
