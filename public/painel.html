@@ -143,9 +143,21 @@
       renderizarPedidos(pedidosAtuais);
     });
 
-    socket.on('novoPedido', () => {
-      const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-      audio.play().catch(() => {});
+    // RECEBER NOVO PEDIDO EM TEMPO REAL
+    socket.on('novoPedido', (pedido) => {
+      // Toca som de notificação
+      try {
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+        audio.play().catch(() => {});
+      } catch (e) {}
+
+      if (pedido && pedido.id) {
+        // Remove duplicata se já existir
+        pedidosAtuais = pedidosAtuais.filter(p => p.id !== pedido.id);
+        // Adiciona o novo pedido no início
+        pedidosAtuais.unshift(pedido);
+        renderizarPedidos(pedidosAtuais);
+      }
     });
 
     function alternarStatusLoja() {
@@ -302,11 +314,11 @@
 
       container.innerHTML = '';
       pedidos.forEach(p => {
-        let itensTxt = p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>');
+        let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
         container.innerHTML += `
-          <div class="pedido-card ${p.status}">
+          <div class="pedido-card ${p.status || 'pendente'}">
             <div class="pedido-header">
-              <span>Pedido #${p.id.toString().slice(-4)} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
+              <span>Pedido #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
               <span>Status: <strong>${p.status ? p.status.toUpperCase() : 'PENDENTE'}</strong></span>
             </div>
             <p><strong>Itens:</strong><br>${itensTxt}</p>
@@ -325,10 +337,19 @@
     }
 
     function mudarStatusPedido(id, status) {
+      // Atualiza o status no array local imediatamente
+      const pedido = pedidosAtuais.find(p => p.id === id);
+      if (pedido) {
+        pedido.status = status;
+        renderizarPedidos(pedidosAtuais);
+      }
       socket.emit('alterarStatusPedido', { id, status });
     }
 
     function removerPedido(id) {
+      // Remove localmente do painel imediatamente ao concluir
+      pedidosAtuais = pedidosAtuais.filter(p => p.id !== id);
+      renderizarPedidos(pedidosAtuais);
       socket.emit('removerPedido', id);
     }
 
@@ -340,17 +361,17 @@
       const area = document.getElementById('area-impressao-termica');
       area.style.display = 'block';
 
-      let itensFormatados = p.itens.map(i => `
+      let itensFormatados = p.itens ? p.itens.map(i => `
         <div class="item-cupom">
           <strong>${i.quantidade}x</strong> ${i.nome}
         </div>
-      `).join('');
+      `).join('') : '';
 
       area.innerHTML = `
         <h2>TRAILER EXPRESS</h2>
         <div style="text-align: center; font-size: 10px;">Comprovante de Pedido</div>
         <div class="divisoria"></div>
-        <p><strong>PEDIDO:</strong> #${p.id.toString().slice(-4)} - ${p.data || ''}</p>
+        <p><strong>PEDIDO:</strong> #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.data || ''}</p>
         <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
         ${p.whatsapp ? `<p><strong>TEL:</strong> ${p.whatsapp}</p>` : ''}
         <p><strong>ENDEREÇO:</strong> ${p.endereco || 'Retirada'}</p>
