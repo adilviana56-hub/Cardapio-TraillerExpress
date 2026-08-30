@@ -18,7 +18,7 @@ const DEFAULT_CONFIG = {
   lojaEndereco: "Rua Demeciano de Mattos Pereira, 3250 C - Jardim Novo Horizonte, Dourados - MS",
   lojaLat: -22.232117,
   lojaLng: -54.845952,
-  taxaBase: 5.00,       // Valor mínimo de entrega
+  taxaBase: 6.00,       // Valor mínimo de entrega (atualizado para R$ 6,00)
   valorPorKm: 1.50,      // Valor cobrado por km percorrido
   distanciaMaximaKm: 20 // Limite de entrega em km
 };
@@ -61,8 +61,8 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   return distanciaLinhaReta * 1.30;
 }
 
-// Função para calcular a taxa de entrega baseada na localização
-function calcularTaxaEntrega(clienteLat, clienteLng) {
+// Função para calcular a taxa de entrega baseada na localização e forma de pagamento
+function calcularTaxaEntrega(clienteLat, clienteLng, formaPagamento = '') {
   if (!clienteLat || !clienteLng) {
     return { erro: "Coordenadas do cliente não informadas." };
   }
@@ -78,12 +78,26 @@ function calcularTaxaEntrega(clienteLat, clienteLng) {
   }
 
   // Cálculo da taxa: Taxa base + (Distância * Valor por Km)
-  const taxaCalculada = configLoja.taxaBase + (distanciaKm * configLoja.valorPorKm);
-  
+  let taxaCalculada = configLoja.taxaBase + (distanciaKm * configLoja.valorPorKm);
+
+  // Verifica se a forma de pagamento é cartão e adiciona R$ 2,00 para taxa de retorno
+  const pagamentoStr = String(formaPagamento).toLowerCase();
+  const pagamentoCartao = pagamentoStr.includes('cartao') || 
+                          pagamentoStr.includes('cartão') ||
+                          pagamentoStr.includes('debito') ||
+                          pagamentoStr.includes('débito') ||
+                          pagamentoStr.includes('credito') ||
+                          pagamentoStr.includes('crédito');
+
+  if (pagamentoCartao) {
+    taxaCalculada += 2.00;
+  }
+
   return {
     entregavel: true,
     distanciaKm: parseFloat(distanciaKm.toFixed(2)),
-    taxaEntrega: parseFloat(taxaCalculada.toFixed(2))
+    taxaEntrega: parseFloat(taxaCalculada.toFixed(2)),
+    taxaCartaoAplicada: pagamentoCartao
   };
 }
 
@@ -163,8 +177,8 @@ app.get('/painel', (req, res) => {
 
 // Endpoint ou Socket para calcular taxa de entrega
 app.post('/api/calcular-taxa', (req, res) => {
-  const { lat, lng } = req.body;
-  const resultado = calcularTaxaEntrega(lat, lng);
+  const { lat, lng, formaPagamento } = req.body;
+  const resultado = calcularTaxaEntrega(lat, lng, formaPagamento);
   res.json(resultado);
 });
 
@@ -173,12 +187,13 @@ io.on('connection', (socket) => {
   socket.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
   socket.emit('carregarPedidos', pedidosAtivos);
 
-  // Evento para calcular taxa via WebSocket (Suporta envio de { lat, lng } ou objeto direto)
+  // Evento para calcular taxa via WebSocket (Suporta envio de { lat, lng, formaPagamento } ou objeto direto)
   socket.on('calcularTaxaEntrega', (coords, callback) => {
     const lat = coords ? (coords.lat || coords.latitude) : null;
     const lng = coords ? (coords.lng || coords.longitude) : null;
+    const formaPagamento = coords ? (coords.formaPagamento || '') : '';
 
-    const resultado = calcularTaxaEntrega(lat, lng);
+    const resultado = calcularTaxaEntrega(lat, lng, formaPagamento);
 
     if (typeof callback === 'function') {
       callback(resultado);
