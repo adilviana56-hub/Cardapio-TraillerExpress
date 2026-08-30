@@ -3,298 +3,216 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel do Estabelecimento - Trailer Express</title>
+  <title>Painel Administrativo - Trailer Express</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #f4f6f8; padding: 15px; max-width: 900px; margin: 0 auto; color: #333; }
+    body { background: #f4f6f9; padding: 20px; color: #333; }
     
-    header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    header h1 { font-size: 20px; color: #cc0000; }
+    .topo-admin { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .topo-admin h1 { font-size: 20px; color: #cc0000; }
     
-    .btn-status { padding: 10px 18px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; color: white; }
-    .btn-aberto { background: #28a745; }
-    .btn-fechado { background: #dc3545; }
+    .status-loja-box { display: flex; align-items: center; gap: 10px; font-weight: bold; }
+    .btn-toggle-loja { padding: 8px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .btn-aberto { background: #28a745; color: white; }
+    .btn-fechado { background: #dc3545; color: white; }
 
-    .secao { background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .secao h2 { font-size: 17px; margin-bottom: 12px; border-bottom: 2px solid #eee; padding-bottom: 6px; color: #444; }
+    .secao-titulo { font-size: 18px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #ccc; padding-bottom: 5px; color: #444; }
 
-    /* Formulários */
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 15px; }
-    .form-grid input, .form-grid select { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
+    /* CARDS DE PEDIDOS */
+    .grid-pedidos { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .card-pedido { background: #fff; border-radius: 8px; border-left: 5px solid #ffc107; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); position: relative; }
+    .card-pedido.em_preparo { border-left-color: #17a2b8; }
+    .card-pedido.concluido { border-left-color: #28a745; opacity: 0.8; }
     
-    .btn { background: #007bff; color: white; border: none; padding: 9px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }
-    .btn:hover { opacity: 0.9; }
-    .btn-sucesso { background: #28a745; }
-    .btn-danger { background: #dc3545; }
-    .btn-warning { background: #ffc107; color: #212529; }
+    .pedido-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+    .pedido-cliente { font-size: 15px; margin-bottom: 4px; }
+    .pedido-detalhes { font-size: 13px; color: #666; margin-bottom: 10px; }
+    
+    .pedido-itens { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 10px; border: 1px solid #f0f0f0; }
+    .pedido-item-linha { margin-bottom: 4px; }
+    
+    .pedido-valores { font-size: 13px; font-weight: bold; border-top: 1px dashed #ccc; padding-top: 5px; margin-bottom: 10px; }
+    
+    .acoes-pedido { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-acao { flex: 1; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; text-align: center; }
+    .btn-preparar { background: #17a2b8; color: white; }
+    .btn-concluir { background: #28a745; color: white; }
+    .btn-imprimir { background: #6c757d; color: white; }
 
-    /* Cards de Categorias e Produtos */
-    .cat-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 15px; background: #fafafa; }
-    .cat-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
-    .cat-header h3 { font-size: 16px; color: #cc0000; }
-
-    .item-produto { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
-    .item-info { flex: 1; min-width: 200px; }
-    .item-info strong { font-size: 15px; }
-    .item-info p { font-size: 12px; color: #666; margin-top: 2px; }
-    .item-acoes { display: flex; align-items: center; gap: 6px; }
-
-    /* Cards de Pedidos */
-    .pedido-card { border-left: 5px solid #007bff; background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .pedido-card.pendente { border-color: #ffc107; }
-    .pedido-card.em_preparo { border-color: #17a2b8; }
-    .pedido-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 6px; font-weight: bold; margin-bottom: 8px; }
+    /* ESTILO EXCLUSIVO DE IMPRESSÃO (TÉRMICA 80MM) */
+    @media print {
+      body * { visibility: hidden; }
+      .comprovante-imprimir, .comprovante-imprimir * { visibility: visible; }
+      .comprovante-imprimir {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 78mm;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        color: #000;
+        background: #fff;
+        padding: 5mm;
+      }
+      .comprovante-imprimir h2 { text-align: center; font-size: 16px; margin-bottom: 5px; text-transform: uppercase; }
+      .comprovante-imprimir p { margin-bottom: 3px; }
+      .comprovante-imprimir .divisoria { border-top: 1px dashed #000; margin: 6px 0; }
+      .comprovante-imprimir .item-cupom { margin-bottom: 5px; }
+    }
   </style>
 </head>
 <body>
 
-  <header>
-    <h1>⚙️ Painel de Controle - Trailer Express</h1>
-    <button id="btn-toggle-loja" class="btn-status btn-aberto" onclick="alternarStatusLoja()">
-      Loja Aberta
-    </button>
-  </header>
-
-  <!-- GERENCIAR CATEGORIAS -->
-  <div class="secao">
-    <h2>📁 Gerenciar Categorias</h2>
-    <div style="display: flex; gap: 10px;">
-      <input type="text" id="nova-categoria-nome" placeholder="Nome da Categoria (Ex: Lanche, Bebidas)" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-      <button class="btn btn-sucesso" onclick="adicionarCategoria()">+ Adicionar Categoria</button>
+  <div class="topo-admin">
+    <h1>🍔 Trailer Express - Painel de Pedidos</h1>
+    <div class="status-loja-box">
+      <span>Status da Loja:</span>
+      <button id="btn-status-loja" class="btn-toggle-loja btn-aberto" onclick="alternarStatusLoja()">ABERTA</button>
     </div>
   </div>
 
-  <!-- CADASTRAR PRODUTO -->
-  <div class="secao">
-    <h2>➕ Cadastrar Novo Produto</h2>
-    <div class="form-grid">
-      <select id="prod-categoria">
-        <option value="">Selecione a Categoria...</option>
-      </select>
-      <input type="text" id="prod-nome" placeholder="Nome do Produto">
-      <input type="number" step="0.50" id="prod-preco" placeholder="Preço (R$)">
-      <input type="text" id="prod-descricao" placeholder="Descrição (Opcional)">
-    </div>
-    <button class="btn btn-sucesso" onclick="adicionarProduto()">Cadastrar Produto</button>
+  <div class="secao-titulo">📋 Pedidos Recebidos</div>
+  <div id="grid-pedidos" class="grid-pedidos">
+    <p style="color: #888;">Nenhum pedido recebido até o momento.</p>
   </div>
 
-  <!-- LISTA E EDIÇÃO DE CARDÁPIO -->
-  <div class="secao">
-    <h2>📋 Cardápio Atual</h2>
-    <div id="container-cardapio"></div>
-  </div>
+  <!-- ÁREA INVISÍVEL PARA IMPRESSÃO TÉRMICA DE 80MM -->
+  <div id="area-impressao-termica" class="comprovante-imprimir" style="display: none;"></div>
 
-  <!-- PEDIDOS RECEBIDOS -->
-  <div class="secao">
-    <h2>🔔 Pedidos Recebidos</h2>
-    <div id="container-pedidos">
-      <p style="color: #777;">Nenhum pedido ativo no momento.</p>
-    </div>
-  </div>
+  <!-- ÁUDIO DE ALERTA -->
+  <audio id="som-notificacao" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 
   <script>
     const socket = io();
     let lojaAberta = true;
-    let cardapioAtual = [];
+    let listaPedidos = [];
 
-    // OUVIR ESTADO EM TEMPO REAL
     socket.on('atualizarEstado', (data) => {
       lojaAberta = data.lojaAberta;
-      cardapioAtual = data.cardapio;
-      atualizarBotaoLoja();
-      renderizarCardapio();
-      atualizarSelectCategorias();
+      atualizarBotaoStatusLoja();
     });
 
-    socket.on('carregarPedidos', (pedidos) => renderizarPedidos(pedidos));
-    socket.on('atualizarListaPedidos', (pedidos) => renderizarPedidos(pedidos));
-    socket.on('novoPedido', () => {
-      const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-      audio.play().catch(() => {});
+    socket.on('novoPedidoNotificacao', (pedido) => {
+      try {
+        const audio = document.getElementById('som-notificacao');
+        audio.play();
+      } catch (e) { console.log('Erro ao tocar áudio:', e); }
+
+      listaPedidos.unshift(pedido);
+      renderizarPedidos();
     });
+
+    function atualizarBotaoStatusLoja() {
+      const btn = document.getElementById('btn-status-loja');
+      if (lojaAberta) {
+        btn.innerText = "LOJA ABERTA (Clique p/ fechar)";
+        btn.className = "btn-toggle-loja btn-aberto";
+      } else {
+        btn.innerText = "LOJA FECHADA (Clique p/ abrir)";
+        btn.className = "btn-toggle-loja btn-fechado";
+      }
+    }
 
     function alternarStatusLoja() {
-      socket.emit('mudarStatusLoja', !lojaAberta);
+      lojaAberta = !lojaAberta;
+      socket.emit('mudarStatusLoja', lojaAberta);
+      atualizarBotaoStatusLoja();
     }
 
-    function atualizarBotaoLoja() {
-      const btn = document.getElementById('btn-toggle-loja');
-      if (lojaAberta) {
-        btn.innerText = "● LOJA ABERTA";
-        btn.className = "btn-status btn-aberto";
-      } else {
-        btn.innerText = "● LOJA FECHADA";
-        btn.className = "btn-status btn-fechado";
-      }
-    }
-
-    function atualizarSelectCategorias() {
-      const select = document.getElementById('prod-categoria');
-      select.innerHTML = '<option value="">Selecione a Categoria...</option>';
-      cardapioAtual.forEach(c => {
-        select.innerHTML += `<option value="${c.categoria}">${c.categoria}</option>`;
-      });
-    }
-
-    function renderizarCardapio() {
-      const container = document.getElementById('container-cardapio');
-      container.innerHTML = '';
-
-      if (cardapioAtual.length === 0) {
-        container.innerHTML = '<p style="color:#888;">Nenhuma categoria cadastrada.</p>';
-        return;
-      }
-
-      cardapioAtual.forEach(cat => {
-        let html = `
-          <div class="cat-box">
-            <div class="cat-header">
-              <h3>${cat.categoria}</h3>
-              <div>
-                <button class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;" onclick="editarCategoria('${cat.categoria}')">✏️ Editar Nome</button>
-                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirCategoria('${cat.categoria}')">🗑️ Excluir</button>
-              </div>
-            </div>
-        `;
-
-        if (cat.produtos.length === 0) {
-          html += `<p style="font-size: 13px; color: #999;">Nenhum produto nesta categoria.</p>`;
-        } else {
-          cat.produtos.forEach(p => {
-            html += `
-              <div class="item-produto">
-                <div class="item-info">
-                  <strong>${p.nome}</strong> - <span style="color:#28a745; font-weight:bold;">R$ ${Number(p.preco).toFixed(2).replace('.', ',')}</span>
-                  <p>${p.descricao || 'Sem descrição'}</p>
-                </div>
-                <div class="item-acoes">
-                  <button class="btn btn-warning" style="padding: 5px 8px; font-size: 12px;" onclick="editarProduto(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.preco}, '${(p.descricao || '').replace(/'/g, "\\'")}')">✏️ Editar</button>
-                  <button class="btn ${p.ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id}, ${!p.ativo})">
-                    ${p.ativo ? 'Disponível' : 'Esgotado'}
-                  </button>
-                  <button class="btn btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="excluirProduto(${p.id})">🗑️</button>
-                </div>
-              </div>
-            `;
-          });
-        }
-
-        html += `</div>`;
-        container.innerHTML += html;
-      });
-    }
-
-    // AÇÕES DE CATEGORIAS
-    function adicionarCategoria() {
-      const input = document.getElementById('nova-categoria-nome');
-      if (input.value.trim()) {
-        socket.emit('adicionarCategoria', input.value.trim());
-        input.value = '';
-      }
-    }
-
-    function editarCategoria(nomeAntigo) {
-      const novoNome = prompt("Digite o novo nome para a categoria:", nomeAntigo);
-      if (novoNome && novoNome.trim()) {
-        socket.emit('editarCategoria', { nomeAntigo, novoNome: novoNome.trim() });
-      }
-    }
-
-    function excluirCategoria(nomeCategoria) {
-      if (confirm(`Excluir a categoria "${nomeCategoria}" e todos os seus produtos?`)) {
-        socket.emit('excluirCategoria', nomeCategoria);
-      }
-    }
-
-    // AÇÕES DE PRODUTOS
-    function adicionarProduto() {
-      const categoria = document.getElementById('prod-categoria').value;
-      const nome = document.getElementById('prod-nome').value.trim();
-      const preco = document.getElementById('prod-preco').value;
-      const descricao = document.getElementById('prod-descricao').value.trim();
-
-      if (!categoria || !nome || !preco) {
-        return alert('Preencha a Categoria, Nome e Preço!');
-      }
-
-      socket.emit('adicionarProduto', { categoria, nome, preco, descricao });
-
-      document.getElementById('prod-nome').value = '';
-      document.getElementById('prod-preco').value = '';
-      document.getElementById('prod-descricao').value = '';
-    }
-
-    function editarProduto(idProduto, nomeAtual, precoAtual, descAtual) {
-      const novoNome = prompt("Nome do Produto:", nomeAtual);
-      if (novoNome === null) return;
-
-      const novoPrecoStr = prompt("Preço (R$):", precoAtual);
-      if (novoPrecoStr === null) return;
-      const novoPreco = parseFloat(novoPrecoStr.replace(',', '.'));
-
-      const novaDesc = prompt("Descrição:", descAtual);
-      if (novaDesc === null) return;
-
-      if (!novoNome.trim() || isNaN(novoPreco)) {
-        return alert("Nome ou Preço inválidos!");
-      }
-
-      socket.emit('editarProduto', {
-        idProduto,
-        nome: novoNome,
-        preco: novoPreco,
-        descricao: novaDesc
-      });
-    }
-
-    function toggleProduto(idProduto, disponivel) {
-      socket.emit('mudarStatusProduto', { idProduto, disponivel });
-    }
-
-    function excluirProduto(idProduto) {
-      if (confirm("Deseja realmente excluir este produto?")) {
-        socket.emit('excluirProduto', idProduto);
-      }
-    }
-
-    // RENDERIZAR PEDIDOS
-    function renderizarPedidos(pedidos) {
-      const container = document.getElementById('container-pedidos');
-      if (!pedidos || pedidos.length === 0) {
-        container.innerHTML = '<p style="color: #777;">Nenhum pedido ativo no momento.</p>';
+    function renderizarPedidos() {
+      const container = document.getElementById('grid-pedidos');
+      if (listaPedidos.length === 0) {
+        container.innerHTML = '<p style="color: #888;">Nenhum pedido registrado nesta sessão.</p>';
         return;
       }
 
       container.innerHTML = '';
-      pedidos.forEach(p => {
-        let itensTxt = p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>');
+
+      listaPedidos.forEach(p => {
+        let itensHtml = p.itens.map(i => `<div class="pedido-item-linha"><strong>${i.quantidade}x</strong> ${i.nome}</div>`).join('');
+
         container.innerHTML += `
-          <div class="pedido-card ${p.status}">
+          <div class="card-pedido ${p.status}">
             <div class="pedido-header">
-              <span>Pedido #${p.id.toString().slice(-4)} - ${p.cliente} (${p.data})</span>
-              <span>Status: <strong>${p.status.toUpperCase()}</strong></span>
+              <span>Pedido #${p.id.toString().slice(-4)}</span>
+              <span>${p.data}</span>
             </div>
-            <p><strong>Itens:</strong><br>${itensTxt}</p>
-            <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total).toFixed(2)} | <strong>Pagamento:</strong> ${p.pagamento.toUpperCase()}</p>
-            <p><strong>Entrega:</strong> ${p.endereco}</p>
-            ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
-            
-            <div style="margin-top: 10px; display: flex; gap: 8px;">
-              ${p.status === 'pendente' ? `<button class="btn btn-sucesso" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">Aceitar / Em Preparo</button>` : ''}
-              <button class="btn btn-danger" onclick="removerPedido(${p.id})">Finalizar / Concluir</button>
+            <div class="pedido-cliente"><strong>${p.cliente}</strong> (${p.whatsapp})</div>
+            <div class="pedido-detalhes">
+              <strong>Tipo:</strong> ${p.tipoEntrega.toUpperCase()}<br>
+              ${p.tipoEntrega === 'entrega' ? `<strong>Endereço:</strong> ${p.endereco}<br>` : ''}
+              <strong>Pagamento:</strong> ${p.pagamento.toUpperCase()} ${p.troco ? `(Troco p/ R$ ${p.troco})` : ''}
+            </div>
+
+            <div class="pedido-itens">
+              ${itensHtml}
+            </div>
+
+            <div class="pedido-valores">
+              Subtotal: R$ ${Number(p.subtotal).toFixed(2).replace('.', ',')}<br>
+              Taxa Entrega: ${p.taxaEntrega === 'A combinar' ? 'A informar via WhatsApp' : 'R$ ' + Number(p.taxaEntrega).toFixed(2).replace('.', ',')}<br>
+              <strong>Total Itens: R$ ${Number(p.total).toFixed(2).replace('.', ',')}</strong>
+            </div>
+
+            ${p.observacao ? `<div style="font-size: 12px; color: #cc0000; margin-bottom: 10px;"><strong>Obs:</strong> ${p.observacao}</div>` : ''}
+
+            <div class="acoes-pedido">
+              <button class="btn-acao btn-imprimir" onclick="imprimirPedido(${p.id})">🖨️ Imprimir 80mm</button>
+              ${p.status === 'pendente' ? `<button class="btn-acao btn-preparar" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">👨‍🍳 Em Preparo</button>` : ''}
+              ${p.status !== 'concluido' ? `<button class="btn-acao btn-concluir" onclick="mudarStatusPedido(${p.id}, 'concluido')">✅ Concluir</button>` : ''}
             </div>
           </div>
         `;
       });
     }
 
-    function mudarStatusPedido(id, status) {
-      socket.emit('alterarStatusPedido', { id, status });
+    function mudarStatusPedido(id, novoStatus) {
+      const pedido = listaPedidos.find(p => p.id === id);
+      if (pedido) {
+        pedido.status = novoStatus;
+        renderizarPedidos();
+      }
     }
 
-    function removerPedido(id) {
-      socket.emit('removerPedido', id);
+    // MONTA O COMPROVANTE TÉRMICO DE 80MM E DISPARA A IMPRESSÃO
+    function imprimirPedido(id) {
+      const p = listaPedidos.find(p => p.id === id);
+      if (!p) return;
+
+      const area = document.getElementById('area-impressao-termica');
+      area.style.display = 'block';
+
+      let itensFormatados = p.itens.map(i => `<div class="item-cupom"><strong>${i.quantidade}x</strong> ${i.nome}</div>`).join('');
+
+      area.innerHTML = `
+        <h2>TRAILER EXPRESS</h2>
+        <div style="text-align: center; font-size: 10px;">Comprovante de Pedido</div>
+        <div class="divisoria"></div>
+        <p><strong>PEDIDO:</strong> #${p.id.toString().slice(-4)} - ${p.data}</p>
+        <p><strong>CLIENTE:</strong> ${p.cliente}</p>
+        <p><strong>TEL:</strong> ${p.whatsapp}</p>
+        <p><strong>TIPO:</strong> ${p.tipoEntrega.toUpperCase()}</p>
+        ${p.tipoEntrega === 'entrega' ? `<p><strong>ENDEREÇO:</strong> ${p.endereco}</p>` : ''}
+        <div class="divisoria"></div>
+        <p><strong>ITENS SOLICITADOS:</strong></p>
+        ${itensFormatados}
+        <div class="divisoria"></div>
+        <p><strong>PAGAMENTO:</strong> ${p.pagamento.toUpperCase()}</p>
+        ${p.troco ? `<p><strong>TROCO PARA:</strong> R$ ${p.troco}</p>` : ''}
+        <p>SUBTOTAL: R$ ${Number(p.subtotal).toFixed(2).replace('.', ',')}</p>
+        <p>TAXA ENTREGA: ${p.taxaEntrega === 'A combinar' ? 'A informar p/ cliente' : 'R$ ' + Number(p.taxaEntrega).toFixed(2).replace('.', ',')}</p>
+        <p style="font-size: 14px; margin-top: 4px;"><strong>TOTAL: R$ ${Number(p.total).toFixed(2).replace('.', ',')}</strong></p>
+        ${p.observacao ? `<div class="divisoria"></div><p><strong>OBS:</strong> ${p.observacao}</p>` : ''}
+        <div class="divisoria"></div>
+        <div style="text-align: center; font-size: 10px; margin-top: 10px;">Obrigado pela preferência! 🍔</div>
+      `;
+
+      window.print();
+
+      setTimeout(() => {
+        area.style.display = 'none';
+      }, 1000);
     }
   </script>
 </body>
