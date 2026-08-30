@@ -8,10 +8,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Caminho do arquivo de dados persistente
+// Caminhos dos arquivos de dados persistentes
 const DATA_FILE = path.join(__dirname, 'cardapio.json');
+const PEDIDOS_FILE = path.join(__dirname, 'pedidos.json');
 
-// Função para carregar o cardápio do arquivo JSON ou inicializar o padrão
+// Função para carregar o cardápio do arquivo JSON
 function carregarCardapio() {
   if (fs.existsSync(DATA_FILE)) {
     try {
@@ -21,7 +22,6 @@ function carregarCardapio() {
       console.error("Erro ao ler cardapio.json, usando padrão:", err);
     }
   }
-  // Cardápio Padrão Inicial
   return [
     {
       categoria: "Lanches",
@@ -39,7 +39,20 @@ function carregarCardapio() {
   ];
 }
 
-// Função para salvar o cardápio no arquivo JSON
+// Função para carregar pedidos salvos do arquivo JSON
+function carregarPedidos() {
+  if (fs.existsSync(PEDIDOS_FILE)) {
+    try {
+      const data = fs.readFileSync(PEDIDOS_FILE, 'utf8');
+      return JSON.parse(data);
+    } catch (err) {
+      console.error("Erro ao ler pedidos.json, usando array vazio:", err);
+    }
+  }
+  return [];
+}
+
+// Funções para salvar os arquivos JSON
 function salvarCardapio() {
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(dadosCardapio, null, 2), 'utf8');
@@ -48,10 +61,18 @@ function salvarCardapio() {
   }
 }
 
-// Inicialização das variáveis
+function salvarPedidos() {
+  try {
+    fs.writeFileSync(PEDIDOS_FILE, JSON.stringify(pedidosAtivos, null, 2), 'utf8');
+  } catch (err) {
+    console.error("Erro ao salvar pedidos.json:", err);
+  }
+}
+
+// Inicialização das variáveis em memória
 let dadosCardapio = carregarCardapio();
+let pedidosAtivos = carregarPedidos();
 let lojaAberta = true;
-let pedidosAtivos = [];
 
 // Servir arquivos estáticos da pasta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
@@ -141,11 +162,10 @@ io.on('connection', (socket) => {
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  // Adicionar Novo Produto (com reconhecimento flexível para "lanche")
+  // Adicionar Novo Produto
   socket.on('adicionarProduto', (novoProduto) => {
     const catEnviada = (novoProduto.categoria || '').trim().toLowerCase();
     
-    // Busca exata do nome da categoria OU por correspondência flexível se contiver "lanche"
     const cat = dadosCardapio.find(c => {
       const catNome = c.categoria.toLowerCase();
       return catNome === catEnviada || (catEnviada.includes('lanche') && catNome.includes('lanche'));
@@ -164,24 +184,44 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Gestão de Pedidos
+  // GESTÃO DE PEDIDOS (COM PERSISTÊNCIA E NOTIFICAÇÃO DE SAÍDA)
   socket.on('novoPedido', (pedido) => {
+    if (!pedido.id) pedido.id = Date.now();
     pedido.status = 'pendente';
+    
+    // Insere no início para o mais recente ficar no topo
     pedidosAtivos.unshift(pedido);
+    salvarPedidos();
+
+    // Emite para o painel em tempo real
     io.emit('novoPedido', pedido);
-    io.emit('receberPedido', pedido);
+    io.emit('atualizarListaPedidos', pedidosAtivos);
   });
 
   socket.on('alterarStatusPedido', ({ id, status }) => {
     const pedido = pedidosAtivos.find(p => p.id === id);
     if (pedido) {
       pedido.status = status;
+      salvarPedidos();
+
+      // Notifica o cliente via socket caso a página dele esteja escutando
+      if (status === 'saiu_entrega') {
+        const mensagemWhats = `Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} do Trailer Express acabou de sair para entrega!`;
+        
+        io.emit('notificacaoCliente', {
+          pedidoId: id,
+          status: 'saiu_entrega',
+          mensagem: mensagemWhats
+        });
+      }
+
       io.emit('atualizarListaPedidos', pedidosAtivos);
     }
   });
 
   socket.on('removerPedido', (idPedido) => {
     pedidosAtivos = pedidosAtivos.filter(p => p.id !== idPedido);
+    salvarPedidos();
     io.emit('atualizarListaPedidos', pedidosAtivos);
   });
 });
