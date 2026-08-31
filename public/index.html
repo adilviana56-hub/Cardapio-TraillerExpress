@@ -7,7 +7,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #f8f9fa; padding: 15px; max-width: 600px; margin: 0 auto; color: #333; }
+    body { background: #f8f9fa; padding: 15px; max-width: 600px; margin: 0 auto; color: #333; padding-bottom: 90px; }
     
     .header-loja { text-align: center; padding: 20px 15px; background: #fff; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .logo-img { max-height: 110px; width: auto; margin-bottom: 8px; border-radius: 8px; }
@@ -40,6 +40,54 @@
     
     .btn-add { background: #cc0000; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
     .btn-add:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* BARRA FLUTUANTE DE PRÉVIA DO CARRINHO */
+    .carrinho-flutuante {
+      position: fixed;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 30px);
+      max-width: 570px;
+      background-color: #28a745;
+      color: #ffffff;
+      padding: 12px 18px;
+      border-radius: 30px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 9999;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .carrinho-flutuante:active {
+      transform: translateX(-50%) scale(0.98);
+    }
+    .carrinho-flutuante-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge-qtd {
+      background-color: #ffffff;
+      color: #28a745;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 50%;
+      font-size: 0.85rem;
+    }
+    .texto-ver-carrinho {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .carrinho-flutuante-total {
+      font-weight: bold;
+      font-size: 1rem;
+    }
+    .carrinho-flutuante.hidden {
+      display: none !important;
+    }
 
     /* CARRINHO */
     .carrinho-box { background: #fff; padding: 15px; border-radius: 8px; margin-top: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -113,8 +161,19 @@
   <!-- DEMAIS CATEGORIAS (BEBIDAS, SOBREMESAS, ETC) -->
   <div id="cardapio-outros-container"></div>
 
+  <!-- BARRA FLUTUANTE DA PRÉVIA DO CARRINHO -->
+  <div id="carrinhoFlutuante" class="carrinho-flutuante hidden" onclick="rolarParaCarrinho()">
+    <div class="carrinho-flutuante-info">
+      <span id="flutuanteQtd" class="badge-qtd">0</span>
+      <span class="texto-ver-carrinho">Ver meu pedido 🛒</span>
+    </div>
+    <div id="flutuanteTotal" class="carrinho-flutuante-total">
+      R$ 0,00
+    </div>
+  </div>
+
   <!-- CARRINHO E FINALIZAÇÃO -->
-  <div class="carrinho-box">
+  <div class="carrinho-box" id="secao-carrinho">
     <h3>🛒 Seu Pedido</h3>
     <div id="itens-carrinho" style="margin-top: 10px;">
       <p style="color: #888; font-size: 13px;">Seu carrinho está vazio.</p>
@@ -211,6 +270,13 @@
     function isProdutoAtivo(p) {
       if (p.ativo === false || p.disponivel === false) return false;
       return true;
+    }
+
+    function rolarParaCarrinho() {
+      const secaoCarrinho = document.getElementById('secao-carrinho');
+      if (secaoCarrinho) {
+        secaoCarrinho.scrollIntoView({ behavior: 'smooth' });
+      }
     }
 
     socket.on('atualizarEstado', (data) => {
@@ -435,10 +501,18 @@
       const totalSpan = document.getElementById('total-carrinho');
       const tipoEntrega = document.getElementById('tipo-entrega').value;
 
+      const elFlutuante = document.getElementById('carrinhoFlutuante');
+      const elQtd = document.getElementById('flutuanteQtd');
+      const elTotal = document.getElementById('flutuanteTotal');
+
+      let totalItensContagem = 0;
+
       if (carrinho.length === 0) {
         container.innerHTML = '<p style="color: #888; font-size: 13px;">Seu carrinho está vazio.</p>';
         subtotalSpan.innerText = '0,00';
         totalSpan.innerText = '0,00';
+        
+        if (elFlutuante) elFlutuante.classList.add('hidden');
         return;
       }
 
@@ -448,6 +522,7 @@
       carrinho.forEach(item => {
         if (item.tipo === 'lanche_montado') {
           subtotalItens += item.precoTotal;
+          totalItensContagem += 1;
           let detalheHtml = item.itens.map(i => `• ${i.qtd}x ${i.nome}`).join('<br>');
 
           container.innerHTML += `
@@ -465,6 +540,7 @@
         } else {
           const sub = item.precoTotal * item.quantidade;
           subtotalItens += sub;
+          totalItensContagem += item.quantidade;
 
           container.innerHTML += `
             <div class="carrinho-item">
@@ -485,6 +561,12 @@
 
       subtotalSpan.innerText = subtotalItens.toFixed(2).replace('.', ',');
       totalSpan.innerText = totalGeral.toFixed(2).replace('.', ',');
+
+      if (elFlutuante && elQtd && elTotal) {
+        elQtd.innerText = totalItensContagem;
+        elTotal.innerText = `R$ ${subtotalItens.toFixed(2).replace('.', ',')}`;
+        elFlutuante.classList.remove('hidden');
+      }
     }
 
     function alternarEntrega() {
