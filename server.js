@@ -20,7 +20,8 @@ const DEFAULT_CONFIG = {
   lojaLng: -54.845952,
   taxaBase: 5.50,
   valorPorKm: 1.30,
-  distanciaMaximaKm: 20
+  distanciaMaximaKm: 20,
+  lojaAberta: true
 };
 
 function carregarConfig() {
@@ -169,7 +170,7 @@ function salvarPedidos() {
 
 let dadosCardapio = carregarCardapio();
 let pedidosAtivos = carregarPedidos();
-let lojaAberta = true;
+let lojaAberta = configLoja.lojaAberta !== undefined ? configLoja.lojaAberta : true;
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -214,6 +215,8 @@ io.on('connection', (socket) => {
 
   socket.on('mudarStatusLoja', (status) => {
     lojaAberta = status;
+    configLoja.lojaAberta = status;
+    salvarConfig();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
