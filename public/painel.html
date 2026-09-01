@@ -97,15 +97,12 @@
     </button>
   </header>
 
-  <!-- ABAS DE NAVEGAÇÃO -->
   <div class="nav-tabs">
     <button class="tab-btn active" onclick="trocarAba('pedidos')">🔔 Pedidos & Cardápio</button>
     <button class="tab-btn" onclick="trocarAba('financeiro')">📊 Relatório Financeiro</button>
   </div>
 
-  <!-- ABA 1: PEDIDOS E GERENCIAMENTO DO CARDÁPIO -->
   <div id="tab-pedidos" class="tab-content active">
-    <!-- GERENCIAR CATEGORIAS -->
     <div class="secao">
       <h2>📁 Gerenciar Categorias</h2>
       <div style="display: flex; gap: 10px;">
@@ -114,7 +111,6 @@
       </div>
     </div>
 
-    <!-- CADASTRAR PRODUTO -->
     <div class="secao">
       <h2>➕ Cadastrar Novo Produto</h2>
       <div class="form-grid">
@@ -128,13 +124,11 @@
       <button class="btn btn-sucesso" onclick="adicionarProduto()">Cadastrar Produto</button>
     </div>
 
-    <!-- LISTA E EDIÇÃO DE CARDÁPIO -->
     <div class="secao">
       <h2>📋 Cardápio Atual</h2>
       <div id="container-cardapio"></div>
     </div>
 
-    <!-- PEDIDOS RECEBIDOS -->
     <div class="secao">
       <h2>🔔 Pedidos Recebidos</h2>
       <div id="container-pedidos">
@@ -143,7 +137,6 @@
     </div>
   </div>
 
-  <!-- ABA 2: RELATÓRIO FINANCEIRO (SUPABASE) -->
   <div id="tab-financeiro" class="tab-content">
     <div class="secao">
       <h2>📊 Resumo Financeiro de Vendas</h2>
@@ -200,7 +193,6 @@
     </div>
   </div>
 
-  <!-- ÁREA INVISÍVEL PARA IMPRESSÃO TÉRMICA 80MM / PDF -->
   <div id="area-impressao-termica" style="display: none;"></div>
 
   <script>
@@ -235,10 +227,16 @@
       const resumo = data.resumo || {};
       const lista = data.pedidos || [];
 
-      document.getElementById('fin-faturamento').innerText = `R$ ${Number(resumo.faturamento_total || 0).toFixed(2).replace('.', ',')}`;
-      document.getElementById('fin-produtos').innerText = `R$ ${Number(resumo.total_produtos || 0).toFixed(2).replace('.', ',')}`;
-      document.getElementById('fin-taxas').innerText = `R$ ${Number(resumo.total_taxas || 0).toFixed(2).replace('.', ',')}`;
-      document.getElementById('fin-qtd').innerText = resumo.qtd_pedidos || 0;
+      // Tratamento seguro para conversão de números do PostgreSQL
+      const faturamentoTotal = parseFloat(resumo.faturamento_total || 0);
+      const totalProdutos = parseFloat(resumo.total_produtos || 0);
+      const totalTaxas = parseFloat(resumo.total_taxas || 0);
+      const qtdPedidos = parseInt(resumo.qtd_pedidos || 0, 10);
+
+      document.getElementById('fin-faturamento').innerText = `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`;
+      document.getElementById('fin-produtos').innerText = `R$ ${totalProdutos.toFixed(2).replace('.', ',')}`;
+      document.getElementById('fin-taxas').innerText = `R$ ${totalTaxas.toFixed(2).replace('.', ',')}`;
+      document.getElementById('fin-qtd').innerText = qtdPedidos;
 
       const corpo = document.getElementById('tabela-relatorio-corpo');
       if (lista.length === 0) {
@@ -261,7 +259,7 @@
       });
     });
 
-    // Helper para verificar disponibilidade do produto de forma segura
+    // Helper para verificar disponibilidade do produto
     function produtoEstaAtivo(p) {
       if (p.ativo === false || p.disponivel === false) return false;
       return true;
@@ -293,10 +291,9 @@
         audio.play().catch(() => {});
       } catch (e) {}
 
-      if (pedido && pedido.id) {
-        pedidosAtuais = pedidosAtuais.filter(p => p.id !== pedido.id);
-        pedidosAtuais.unshift(pedido);
-        renderizarPedidos(pedidosAtuais);
+      // Se estivesse na aba financeira no momento do pedido, recarrega o relatório
+      if (document.getElementById('tab-financeiro').classList.contains('active')) {
+        carregarRelatorioFinanceiro();
       }
     });
 
