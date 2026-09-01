@@ -439,10 +439,20 @@ io.on('connection', (socket) => {
     if (!process.env.DATABASE_URL) return;
 
     try {
-      const resPedido = await pool.query(`
+      // Modificado para aceitar tanto o ID inteiro exato quanto uma busca por final de ID caso venha cortado
+      let resPedido = await pool.query(`
         SELECT id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
         FROM pedidos WHERE id = $1
       `, [id]);
+
+      // Se não encontrar diretamente pelo ID exato, tenta buscar pelo final do ID (caso o frontend tenha enviado só os 4 dígitos)
+      if (resPedido.rows.length === 0 && String(id).length <= 6) {
+        resPedido = await pool.query(`
+          SELECT id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
+          FROM pedidos WHERE RIGHT(CAST(id AS TEXT), 4) = $1 OR RIGHT(CAST(id AS TEXT), 5) = $1
+          ORDER BY data_criacao DESC LIMIT 1
+        `, [String(id).replace('#', '')]);
+      }
 
       if (resPedido.rows.length > 0) {
         const pedidoEncontrado = resPedido.rows[0];
@@ -452,6 +462,7 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error("Erro ao buscar pedido para impressão no Supabase:", err);
+      socket.emit('erroImpressao', 'Erro interno ao buscar pedido.');
     }
   });
 
@@ -480,7 +491,7 @@ io.on('connection', (socket) => {
         FROM pedidos ${queryCondicao}
       `);
 
-      // 2. Busca lista de pedidos do período para a tabela do relatório
+      // 2. Busca lista de pedidos do período incluindo o ID COMPLETO REAL para o botão de imprimir funcionar perfeitamente
       const resLista = await pool.query(`
         SELECT id, cliente, total, tipo_entrega, pagamento, status, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
         FROM pedidos ${queryCondicao}
