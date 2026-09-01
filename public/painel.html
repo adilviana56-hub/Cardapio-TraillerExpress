@@ -181,7 +181,7 @@
         </div>
       </div>
 
-      <!-- CARDS DE MÉTRICAS (Faturamento de Hoje, Semanal/Mensal, etc.) -->
+      <!-- CARDS DE MÉTRICAS -->
       <div class="grid-financeiro">
         <div class="card-fin">
           <h4>Faturamento do Período</h4>
@@ -228,11 +228,12 @@
               <th>Entrega</th>
               <th>Pagamento</th>
               <th>Total</th>
+              <th style="text-align: center;">Ações</th>
             </tr>
           </thead>
           <tbody id="tabela-relatorio-corpo">
             <tr>
-              <td colspan="6" style="text-align: center; color: #888;">Carregando dados do banco...</td>
+              <td colspan="7" style="text-align: center; color: #888;">Carregando dados do banco...</td>
             </tr>
           </tbody>
         </table>
@@ -247,6 +248,7 @@
     let lojaAberta = true;
     let cardapioAtual = [];
     let pedidosAtuais = [];
+    let pedidosHistoricoGeral = []; // Armazena a lista do relatório atual para busca rápida (impressão/exclusão)
     let chartInstancia = null;
 
     // Alternar visibilidade das datas customizadas
@@ -294,7 +296,7 @@
     // OUVIR RESPOSTA DO BANCO DE DADOS E RENDERIZAR MÉTRICAS / GRÁFICOS
     socket.on('respostaRelatorioFinanceiro', (data) => {
       const resumo = data.resumo || {};
-      const lista = data.pedidos || [];
+      pedidosHistoricoGeral = data.pedidos || [];
 
       // Tratamento seguro para conversão de números do PostgreSQL
       const faturamentoTotal = parseFloat(resumo.faturamento_total || 0);
@@ -307,13 +309,13 @@
       document.getElementById('fin-taxas').innerText = `R$ ${totalTaxas.toFixed(2).replace('.', ',')}`;
       document.getElementById('fin-qtd').innerText = qtdPedidos;
 
-      // Renderizar Tabela
+      // Renderizar Tabela com Botões de Ação (Imprimir e Excluir Teste)
       const corpo = document.getElementById('tabela-relatorio-corpo');
-      if (lista.length === 0) {
-        corpo.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">Nenhum pedido encontrado no período selecionado.</td></tr>';
+      if (pedidosHistoricoGeral.length === 0) {
+        corpo.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #888;">Nenhum pedido encontrado no período selecionado.</td></tr>';
       } else {
         corpo.innerHTML = '';
-        lista.forEach(p => {
+        pedidosHistoricoGeral.forEach(p => {
           corpo.innerHTML += `
             <tr>
               <td>${p.data_formatada || '-'}</td>
@@ -322,14 +324,67 @@
               <td>${(p.tipo_entrega || 'entrega').toUpperCase()}</td>
               <td>${(p.pagamento || '-').toUpperCase()}</td>
               <td><strong>R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></td>
+              <td style="text-align: center; white-space: nowrap;">
+                <button class="btn btn-imprimir" style="padding: 4px 8px; font-size: 12px;" onclick="imprimirPedidoHistorico(${p.id})">🖨️</button>
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirVendaHistorico(${p.id})">🗑️</button>
+              </td>
             </tr>
           `;
         });
       }
 
       // Processar Produtos Mais Vendidos e Gráfico com base na lista de pedidos retornados
-      processarAnalytcs(lista);
+      processarAnalytcs(pedidosHistoricoGeral);
     });
+
+    // EXCLUIR REGISTRO DE VENDA/TESTE DO HISTÓRICO
+    function excluirVendaHistorico(id) {
+      if (confirm(`Deseja realmente excluir permanentemente a venda #${id.toString().slice(-4)} do histórico financeiro?`)) {
+        socket.emit('excluirVendaHistorico', id);
+        carregarRelatorioFinanceiro();
+      }
+    }
+
+    // IMPRIMIR PEDIDO DIRETAMENTE DO RELATÓRIO HISTÓRICO
+    function imprimirPedidoHistorico(id) {
+      const p = pedidosHistoricoGeral.find(item => item.id === id);
+      if (!p) return alert('Pedido não encontrado no histórico!');
+
+      const area = document.getElementById('area-impressao-termica');
+      area.style.display = 'block';
+
+      let itensFormatados = p.itens ? p.itens.map(i => `
+        <div class="item-cupom">
+          <strong>${i.quantidade}x</strong> ${i.nome}
+        </div>
+      `).join('') : '';
+
+      area.innerHTML = `
+        <h2>TRAILER EXPRESS</h2>
+        <div style="text-align: center; font-size: 10px;">Comprovante de Pedido (Reimpressão)</div>
+        <div class="divisoria"></div>
+        <p><strong>PEDIDO:</strong> #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.data_formatada || p.data || ''}</p>
+        <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
+        ${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
+        <p><strong>ENDEREÇO:</strong> ${p.endereco || p.tipo_entrega || 'Retirada'}</p>
+        <div class="divisoria"></div>
+        <p><strong>ITENS SOLICITADOS:</strong></p>
+        ${itensFormatados}
+        <div class="divisoria"></div>
+        <p><strong>PAGAMENTO:</strong> ${(p.pagamento || '').toUpperCase()}</p>
+        ${p.troco ? `<p><strong>TROCO PARA:</strong> R$ ${p.troco}</p>` : ''}
+        <p style="font-size: 14px; margin-top: 4px;"><strong>TOTAL: R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></p>
+        ${p.observacao ? `<div class="divisoria"></div><p><strong>OBS:</strong> ${p.observacao}</p>` : ''}
+        <div class="divisoria"></div>
+        <div style="text-align: center; font-size: 10px; margin-top: 8px;">Obrigado pela preferência! 🍔</div>
+      `;
+
+      window.print();
+
+      setTimeout(() => {
+        area.style.display = 'none';
+      }, 1000);
+    }
 
     // PROCESSAR RANKING DE PRODUTOS E GRÁFICO DE VENDAS (CHART.JS)
     function processarAnalytcs(pedidos) {
@@ -701,7 +756,7 @@
         ${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
         <p><strong>ENDEREÇO:</strong> ${p.endereco || 'Retirada'}</p>
         <div class="divisoria"></div>
-        <p><strong>ITENS SOLICITADOS:</strong></p>
+        <p><strong>ITENS SOLICITADOS:**</p>
         ${itensFormatados}
         <div class="divisoria"></div>
         <p><strong>PAGAMENTO:</strong> ${(p.pagamento || '').toUpperCase()}</p>
