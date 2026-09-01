@@ -3,10 +3,49 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
+const { Pool } = require('pg'); // Conexão com o Supabase (PostgreSQL)
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+// Configuração do PostgreSQL / Supabase via Variável de Ambiente
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Inicializa a tabela 'pedidos' no banco de dados se ela ainda não existir
+async function initDb() {
+  if (!process.env.DATABASE_URL) {
+    console.log("⚠️ Variável DATABASE_URL não encontrada no ambiente. Verifique o Render.");
+    return;
+  }
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pedidos (
+        id BIGINT PRIMARY KEY,
+        cliente VARCHAR(255),
+        whatsapp VARCHAR(50),
+        subtotal NUMERIC(10,2),
+        taxa_entrega NUMERIC(10,2),
+        total NUMERIC(10,2),
+        tipo_entrega VARCHAR(50),
+        endereco TEXT,
+        pagamento VARCHAR(50),
+        troco VARCHAR(50),
+        observacao TEXT,
+        status VARCHAR(50),
+        itens JSONB,
+        data_criacao TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log("🟢 Conectado ao Supabase (PostgreSQL) e tabela 'pedidos' pronta!");
+  } catch (err) {
+    console.error("🔴 Erro ao inicializar o banco de dados no Supabase:", err);
+  }
+}
+initDb();
 
 // Caminhos dos arquivos de dados persistentes
 const DATA_FILE = path.join(__dirname, 'cardapio.json');
@@ -314,17 +353,44 @@ io.on('connection', (socket) => {
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  socket.on('novoPedido', (pedido) => {
+  socket.on('novoPedido', async (pedido) => {
     if (!pedido.id) pedido.id = Date.now();
     pedido.status = 'pendente';
     pedidosAtivos.unshift(pedido);
     salvarPedidos();
 
+    // Salva o pedido no banco de dados Supabase para os relatórios
+    if (process.env.DATABASE_URL) {
+      try {
+        await pool.query(`
+          INSERT INTO pedidos (id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens, data_criacao)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+          ON CONFLICT (id) DO NOTHING
+        `, [
+          pedido.id,
+          pedido.cliente || 'Cliente Sem Nome',
+          pedido.whatsapp || null,
+          pedido.subtotal || (pedido.total ? pedido.total - (pedido.taxaEntrega || 0) : 0),
+          pedido.taxaEntrega || 0,
+          pedido.total || 0,
+          pedido.tipoEntrega || 'entrega',
+          pedido.endereco || null,
+          pedido.pagamento || 'não especificado',
+          pedido.troco || null,
+          pedido.observacao || null,
+          'pendente',
+          JSON.stringify(pedido.itens || [])
+        ]);
+      } catch (err) {
+        console.error("Erro ao gravar pedido no Supabase:", err);
+      }
+    }
+
     io.emit('novoPedido', pedido);
     io.emit('atualizarListaPedidos', pedidosAtivos);
   });
 
-  socket.on('alterarStatusPedido', ({ id, status }) => {
+  socket.on('alterarStatusPedido', async ({ id, status }) => {
     const pedido = pedidosAtivos.find(p => p.id === id);
     if (pedido) {
       pedido.status = status;
@@ -341,12 +407,63 @@ io.on('connection', (socket) => {
 
       io.emit('atualizarListaPedidos', pedidosAtivos);
     }
+
+    // Atualiza o status no banco de dados do Supabase
+    if (process.env.DATABASE_URL) {
+      try {
+        await pool.query('UPDATE pedidos SET status = $1 WHERE id = $2', [status, id]);
+      } catch (err) {
+        console.error("Erro ao atualizar status do pedido no Supabase:", err);
+      }
+    }
   });
 
   socket.on('removerPedido', (idPedido) => {
     pedidosAtivos = pedidosAtivos.filter(p => p.id !== idPedido);
     salvarPedidos();
     io.emit('atualizarListaPedidos', pedidosAtivos);
+  });
+
+  // BUSCAR RELATÓRIOS FINANCEIROS DO SUPABASE
+  socket.on('obterRelatorioFinanceiro', async (filtro) => {
+    if (!process.env.DATABASE_URL) return;
+
+    try {
+      let queryCondicao = "WHERE status != 'cancelado'";
+      
+      if (filtro === 'hoje') {
+        queryCondicao += " AND data_criacao >= CURRENT_DATE";
+      } else if (filtro === 'semana') {
+        queryCondicao += " AND data_criacao >= NOW() - INTERVAL '7 days'";
+      } else if (filtro === 'mes') {
+        queryCondicao += " AND data_criacao >= DATE_TRUNC('month', CURRENT_DATE)";
+      }
+
+      // 1. Resumo financeiro total
+      const resTotais = await pool.query(`
+        SELECT 
+          COUNT(*) as qtd_pedidos,
+          COALESCE(SUM(subtotal), 0) as total_produtos,
+          COALESCE(SUM(taxa_entrega), 0) as total_taxas,
+          COALESCE(SUM(total), 0) as faturamento_total
+        FROM pedidos ${queryCondicao}
+      `);
+
+      // 2. Busca lista de pedidos do período para a tabela do relatório
+      const resLista = await pool.query(`
+        SELECT id, cliente, total, tipo_entrega, pagamento, status, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
+        FROM pedidos ${queryCondicao}
+        ORDER BY data_criacao DESC
+        LIMIT 50
+      `);
+
+      socket.emit('respostaRelatorioFinanceiro', {
+        resumo: resTotais.rows[0],
+        pedidos: resLista.rows
+      });
+    } catch (err) {
+      console.error("Erro ao obter relatório financeiro do Supabase:", err);
+    }
   });
 });
 
