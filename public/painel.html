@@ -1,254 +1,9 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel do Estabelecimento - Trailer Express</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <!-- Chart.js para os gráficos de vendas -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #f4f6f8; padding: 15px; max-width: 900px; margin: 0 auto; color: #333; }
-    
-    header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    header h1 { font-size: 20px; color: #cc0000; }
-    
-    .btn-status { padding: 10px 18px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; color: white; }
-    .btn-aberto { background: #28a745; }
-    .btn-fechado { background: #dc3545; }
-
-    /* ESTILOS DAS ABAS DO PAINEL */
-    .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px; flex-wrap: wrap; }
-    .tab-btn { background: #e9ecef; border: none; padding: 10px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 14px; color: #495057; }
-    .tab-btn.active { background: #cc0000; color: white; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    .secao { background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .secao h2 { font-size: 17px; margin-bottom: 12px; border-bottom: 2px solid #eee; padding-bottom: 6px; color: #444; }
-
-    /* Formulários */
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 15px; }
-    .form-grid input, .form-grid select { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
-    
-    .btn { background: #007bff; color: white; border: none; padding: 9px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }
-    .btn:hover { opacity: 0.9; }
-    .btn-sucesso { background: #28a745; }
-    .btn-danger { background: #dc3545; }
-    .btn-warning { background: #ffc107; color: #212529; }
-    .btn-info { background: #17a2b8; color: white; }
-    .btn-imprimir { background: #6c757d; color: white; }
-
-    /* Cards de Categorias e Produtos */
-    .cat-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 15px; background: #fafafa; }
-    .cat-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
-    .cat-header h3 { font-size: 16px; color: #cc0000; }
-
-    .item-produto { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
-    .item-info { flex: 1; min-width: 200px; }
-    .item-info strong { font-size: 15px; }
-    .item-info p { font-size: 12px; color: #666; margin-top: 2px; }
-    .item-acoes { display: flex; align-items: center; gap: 6px; }
-
-    /* Cards de Pedidos */
-    .pedido-card { border-left: 5px solid #007bff; background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .pedido-card.pendente { border-color: #ffc107; }
-    .pedido-card.em_preparo { border-color: #17a2b8; }
-    .pedido-card.saiu_entrega { border-color: #28a745; }
-    .pedido-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 6px; font-weight: bold; margin-bottom: 8px; flex-wrap: wrap; gap: 5px; }
-
-    /* CARDS DO RELATÓRIO FINANCEIRO E MÉTRICAS */
-    .grid-financeiro { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
-    .card-fin { background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; text-align: center; }
-    .card-fin h4 { font-size: 13px; color: #6c757d; margin-bottom: 5px; text-transform: uppercase; }
-    .card-fin .valor { font-size: 20px; font-weight: bold; color: #28a745; }
-
-    .tabela-relatorio { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-    .tabela-relatorio th, .tabela-relatorio td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
-    .tabela-relatorio th { background: #e9ecef; }
-
-    /* Grid para Gráficos e Produtos Mais Vendidos */
-    .grid-analytics { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-    @media(max-width: 768px) { .grid-analytics { grid-template-columns: 1fr; } }
-    .card-chart { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-
-    /* ESTILO PARA IMPRESSÃO TÉRMICA DE 80MM OU SALVAR EM PDF */
-    @media print {
-      body * { visibility: hidden; }
-      #area-impressao-termica, #area-impressao-termica * { visibility: visible; }
-      #area-impressao-termica {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 78mm;
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 12px;
-        color: #000;
-        background: #fff;
-        padding: 4mm;
-      }
-      #area-impressao-termica h2 { text-align: center; font-size: 16px; margin-bottom: 4px; text-transform: uppercase; }
-      #area-impressao-termica p { margin-bottom: 3px; word-break: break-word; }
-      #area-impressao-termica .divisoria { border-top: 1px dashed #000; margin: 6px 0; }
-      #area-impressao-termica .item-cupom { margin-bottom: 4px; }
-    }
-  </style>
-</head>
-<body>
-
-  <header>
-    <h1>⚙️ Painel de Controle - Trailer Express</h1>
-    <button id="btn-toggle-loja" class="btn-status btn-aberto" onclick="alternarStatusLoja()">
-      Loja Aberta
-    </button>
-  </header>
-
-  <!-- NAVEGAÇÃO DIVIDIDA EM 3 ABAS SEPARADAS -->
-  <div class="nav-tabs">
-    <button class="tab-btn active" onclick="trocarAba('pedidos')">🔔 Pedidos Recebidos</button>
-    <button class="tab-btn" onclick="trocarAba('cardapio')">🍔 Gerenciar Cardápio</button>
-    <button class="tab-btn" onclick="trocarAba('financeiro')">📊 Relatório Financeiro & Métricas</button>
-  </div>
-
-  <!-- ABA 1: APENAS PEDIDOS RECEBIDOS -->
-  <div id="tab-pedidos" class="tab-content active">
-    <div class="secao">
-      <h2>🔔 Pedidos Recebidos</h2>
-      <div id="container-pedidos">
-        <p style="color: #777;">Nenhum pedido ativo no momento.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ABA 2: APENAS GERENCIAMENTO DO CARDÁPIO -->
-  <div id="tab-cardapio" class="tab-content">
-    <div class="secao">
-      <h2>📁 Gerenciar Categorias</h2>
-      <div style="display: flex; gap: 10px;">
-        <input type="text" id="nova-categoria-nome" placeholder="Nome da Categoria (Ex: Lanche, Bebidas)" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-        <button class="btn btn-sucesso" onclick="adicionarCategoria()">+ Adicionar Categoria</button>
-      </div>
-    </div>
-
-    <div class="secao">
-      <h2>➕ Cadastrar Novo Produto</h2>
-      <div class="form-grid">
-        <select id="prod-categoria">
-          <option value="">Selecione a Categoria...</option>
-        </select>
-        <input type="text" id="prod-nome" placeholder="Nome do Produto">
-        <input type="number" step="0.50" id="prod-preco" placeholder="Preço (R$)">
-        <input type="text" id="prod-descricao" placeholder="Descrição (Opcional)">
-      </div>
-      <button class="btn btn-sucesso" onclick="adicionarProduto()">Cadastrar Produto</button>
-    </div>
-
-    <div class="secao">
-      <h2>📋 Cardápio Atual</h2>
-      <div id="container-cardapio"></div>
-    </div>
-  </div>
-
-  <!-- ABA 3: RELATÓRIO FINANCEIRO & MÉTRICAS -->
-  <div id="tab-financeiro" class="tab-content">
-    <div class="secao">
-      <h2>📊 Resumo Financeiro, Métricas e Relatórios</h2>
-      
-      <!-- FILTROS DE PERÍODO PADRÃO E CUSTOMIZADO -->
-      <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: #fdfdfd; padding: 12px; border: 1px solid #eee; border-radius: 6px;">
-        <div>
-          <label style="font-size: 13px; font-weight: bold; display: block; margin-bottom: 4px;">Período Rápido:</label>
-          <select id="filtro-periodo" onchange="carregarRelatorioFinanceiro()" style="padding: 7px 10px; border-radius: 4px; border: 1px solid #ccc;">
-            <option value="hoje">Hoje</option>
-            <option value="semana">Últimos 7 dias</option>
-            <option value="mes" selected>Este Mês</option>
-            <option value="custom">Personalizado (Datas)</option>
-            <option value="todos">Todo o Histórico</option>
-          </select>
-        </div>
-
-        <div id="bloco-datas-custom" style="display: none; align-items: flex-end; gap: 8px;">
-          <div>
-            <label style="font-size: 12px; display: block; margin-bottom: 2px;">Data Início:</label>
-            <input type="date" id="filtro-data-inicio" style="padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
-          </div>
-          <div>
-            <label style="font-size: 12px; display: block; margin-bottom: 2px;">Data Fim:</label>
-            <input type="date" id="filtro-data-fim" style="padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
-          </div>
-          <button class="btn" onclick="carregarRelatorioFinanceiro()" style="padding: 7px 12px;">Filtrar</button>
-        </div>
-      </div>
-
-      <!-- CARDS DE MÉTRICAS -->
-      <div class="grid-financeiro">
-        <div class="card-fin">
-          <h4>Faturamento do Período</h4>
-          <div class="valor" id="fin-faturamento">R$ 0,00</div>
-        </div>
-        <div class="card-fin">
-          <h4>Venda de Produtos</h4>
-          <div class="valor" id="fin-produtos" style="color: #007bff;">R$ 0,00</div>
-        </div>
-        <div class="card-fin">
-          <h4>Taxas de Entrega</h4>
-          <div class="valor" id="fin-taxas" style="color: #17a2b8;">R$ 0,00</div>
-        </div>
-        <div class="card-fin">
-          <h4>Total de Pedidos</h4>
-          <div class="valor" id="fin-qtd" style="color: #333;">0</div>
-        </div>
-      </div>
-
-      <!-- GRÁFICOS E RANKING DE PRODUTOS MAIS VENDIDOS -->
-      <div class="grid-analytics">
-        <div class="card-chart">
-          <h3 style="font-size: 14px; margin-bottom: 10px; color: #444;">📈 Gráfico de Vendas (Movimento)</h3>
-          <div style="position: relative; height: 220px;">
-            <canvas id="graficoVendas"></canvas>
-          </div>
-        </div>
-        <div class="card-chart">
-          <h3 style="font-size: 14px; margin-bottom: 10px; color: #444;">🍔 Produtos / Bebidas Mais Vendidos</h3>
-          <div id="ranking-produtos" style="font-size: 13px; max-height: 220px; overflow-y: auto;">
-            <p style="color: #888; text-align: center; margin-top: 40px;">Calculando itens mais vendidos...</p>
-          </div>
-        </div>
-      </div>
-
-      <h3 style="font-size: 15px; margin-top: 20px; color: #444;">Histórico de Pedidos no Período</h3>
-      <div style="overflow-x: auto;">
-        <table class="tabela-relatorio">
-          <thead>
-            <tr>
-              <th>Data/Hora</th>
-              <th>Pedido</th>
-              <th>Cliente</th>
-              <th>Entrega</th>
-              <th>Pagamento</th>
-              <th>Total</th>
-              <th style="text-align: center;">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="tabela-relatorio-corpo">
-            <tr>
-              <td colspan="7" style="text-align: center; color: #888;">Carregando dados do banco...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="area-impressao-termica" style="display: none;"></div>
-
-  <script>
+<script>
     const socket = io();
     let lojaAberta = true;
     let cardapioAtual = [];
     let pedidosAtuais = [];
-    let pedidosHistoricoGeral = []; // Armazena a lista do relatório atual para busca rápida (impressão/exclusão)
+    let pedidosHistoricoGeral = []; 
     let chartInstancia = null;
 
     // Alternar visibilidade das datas customizadas
@@ -262,7 +17,7 @@
       }
     });
 
-    // NAVEGAÇÃO ATUALIZADA PARA 3 ABAS
+    // NAVEGAÇÃO 3 ABAS
     function trocarAba(aba) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -298,7 +53,6 @@
       const resumo = data.resumo || {};
       pedidosHistoricoGeral = data.pedidos || [];
 
-      // Tratamento seguro para conversão de números do PostgreSQL
       const faturamentoTotal = parseFloat(resumo.faturamento_total || 0);
       const totalProdutos = parseFloat(resumo.total_produtos || 0);
       const totalTaxas = parseFloat(resumo.total_taxas || 0);
@@ -309,50 +63,62 @@
       document.getElementById('fin-taxas').innerText = `R$ ${totalTaxas.toFixed(2).replace('.', ',')}`;
       document.getElementById('fin-qtd').innerText = qtdPedidos;
 
-      // Renderizar Tabela com Botões de Ação (Imprimir e Excluir Teste)
       const corpo = document.getElementById('tabela-relatorio-corpo');
       if (pedidosHistoricoGeral.length === 0) {
         corpo.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #888;">Nenhum pedido encontrado no período selecionado.</td></tr>';
       } else {
         corpo.innerHTML = '';
         pedidosHistoricoGeral.forEach(p => {
+          const idStr = String(p.id || '');
           corpo.innerHTML += `
             <tr>
               <td>${p.data_formatada || '-'}</td>
-              <td>#${p.id ? p.id.toString().slice(-4) : '---'}</td>
+              <td>#${idStr ? idStr.slice(-4) : '---'}</td>
               <td>${p.cliente || 'Cliente'}</td>
               <td>${(p.tipo_entrega || 'entrega').toUpperCase()}</td>
               <td>${(p.pagamento || '-').toUpperCase()}</td>
               <td><strong>R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></td>
               <td style="text-align: center; white-space: nowrap;">
-                <button class="btn btn-imprimir" style="padding: 4px 8px; font-size: 12px;" onclick="imprimirPedidoHistorico(${p.id})">🖨️</button>
-                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirVendaHistorico(${p.id})">🗑️</button>
+                <button class="btn btn-imprimir" style="padding: 4px 8px; font-size: 12px;" onclick="imprimirPedidoHistorico('${idStr}')">🖨️</button>
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirVendaHistorico('${idStr}')">🗑️</button>
               </td>
             </tr>
           `;
         });
       }
 
-      // Processar Produtos Mais Vendidos e Gráfico com base na lista de pedidos retornados
       processarAnalytcs(pedidosHistoricoGeral);
     });
 
     // EXCLUIR REGISTRO DE VENDA/TESTE DO HISTÓRICO
     function excluirVendaHistorico(id) {
-      if (confirm(`Deseja realmente excluir permanentemente a venda #${id.toString().slice(-4)} do histórico financeiro?`)) {
+      const idStr = String(id);
+      if (confirm(`Deseja realmente excluir permanentemente a venda #${idStr.slice(-4)} do histórico financeiro?`)) {
         socket.emit('excluirVendaHistorico', id);
         carregarRelatorioFinanceiro();
       }
     }
 
-    // IMPRIMIR PEDIDO DIRETAMENTE DO RELATÓRIO HISTÓRICO
+    // IMPRIMIR PEDIDO DO RELATÓRIO HISTÓRICO
     function imprimirPedidoHistorico(id) {
-      const p = pedidosHistoricoGeral.find(item => item.id === id);
+      const p = pedidosHistoricoGeral.find(item => String(item.id) === String(id));
       if (!p) return alert('Pedido não encontrado no histórico!');
+      executarImpressaoTermica(p);
+    }
 
+    // IMPRIMIR PEDIDO DA ABA DE PEDIDOS ATIVOS
+    function imprimirPedido(id) {
+      const p = pedidosAtuais.find(item => String(item.id) === String(id));
+      if (!p) return alert('Pedido ativo não encontrado!');
+      executarImpressaoTermica(p);
+    }
+
+    // FUNÇÃO CENTRALIZADA DE GERAÇÃO DO CUPOM TÉRMICO
+    function executarImpressaoTermica(p) {
       const area = document.getElementById('area-impressao-termica');
       area.style.display = 'block';
 
+      const idStr = String(p.id || '');
       let itensFormatados = p.itens ? p.itens.map(i => `
         <div class="item-cupom">
           <strong>${i.quantidade}x</strong> ${i.nome}
@@ -361,9 +127,9 @@
 
       area.innerHTML = `
         <h2>TRAILER EXPRESS</h2>
-        <div style="text-align: center; font-size: 10px;">Comprovante de Pedido (Reimpressão)</div>
+        <div style="text-align: center; font-size: 10px;">Comprovante de Pedido</div>
         <div class="divisoria"></div>
-        <p><strong>PEDIDO:</strong> #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.data_formatada || p.data || ''}</p>
+        <p><strong>PEDIDO:</strong> #${idStr ? idStr.slice(-4) : '---'} - ${p.data_formatada || p.data || ''}</p>
         <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
         ${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
         <p><strong>ENDEREÇO:</strong> ${p.endereco || p.tipo_entrega || 'Retirada'}</p>
@@ -386,18 +152,16 @@
       }, 1000);
     }
 
-    // PROCESSAR RANKING DE PRODUTOS E GRÁFICO DE VENDAS (CHART.JS)
+    // PROCESSAR RANKING E GRÁFICO
     function processarAnalytcs(pedidos) {
       const contagemProdutos = {};
       const faturamentoPorDia = {};
 
       pedidos.forEach(p => {
-        // Agrupar faturamento por dia para o gráfico
         const dataDia = p.data_formatada ? p.data_formatada.split(' ')[0] : 'Desconhecido';
         const valorTotal = parseFloat(p.total || 0);
         faturamentoPorDia[dataDia] = (faturamentoPorDia[dataDia] || 0) + valorTotal;
 
-        // Contabilizar ingredientes/bebidas mais vendidos
         if (p.itens && Array.isArray(p.itens)) {
           p.itens.forEach(item => {
             const nomeItem = item.nome || 'Produto';
@@ -407,7 +171,6 @@
         }
       });
 
-      // Renderizar Ranking de Produtos Mais Vendidos
       const rankingDiv = document.getElementById('ranking-produtos');
       const produtosOrdenados = Object.entries(contagemProdutos).sort((a, b) => b[1] - a[1]);
 
@@ -427,7 +190,6 @@
         rankingDiv.innerHTML = htmlRanking;
       }
 
-      // Renderizar Gráfico de Vendas (Chart.js)
       const diasOrdenados = Object.keys(faturamentoPorDia).sort();
       const valoresDias = diasOrdenados.map(d => faturamentoPorDia[d]);
 
@@ -469,13 +231,11 @@
       });
     }
 
-    // Helper para verificar disponibilidade do produto
     function produtoEstaAtivo(p) {
       if (p.ativo === false || p.disponivel === false) return false;
       return true;
     }
 
-    // OUVIR ESTADO EM TEMPO REAL
     socket.on('atualizarEstado', (data) => {
       lojaAberta = data.lojaAberta;
       cardapioAtual = data.cardapio || [];
@@ -494,14 +254,12 @@
       renderizarPedidos(pedidosAtuais);
     });
 
-    // RECEBER NOVO PEDIDO EM TEMPO REAL
     socket.on('novoPedido', (pedido) => {
       try {
         const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
         audio.play().catch(() => {});
       } catch (e) {}
 
-      // Se estivesse na aba financeira no momento do pedido, recarrega o relatório
       if (document.getElementById('tab-financeiro').classList.contains('active')) {
         carregarRelatorioFinanceiro();
       }
@@ -585,7 +343,6 @@
       });
     }
 
-    // AÇÕES DE CATEGORIAS
     function adicionarCategoria() {
       const input = document.getElementById('nova-categoria-nome');
       if (input.value.trim()) {
@@ -607,7 +364,6 @@
       }
     }
 
-    // AÇÕES DE PRODUTOS
     function adicionarProduto() {
       const categoria = document.getElementById('prod-categoria').value;
       const nome = document.getElementById('prod-nome').value.trim();
@@ -653,7 +409,6 @@
       }
     }
 
-    // RENDERIZAR PEDIDOS
     function renderizarPedidos(pedidos) {
       const container = document.getElementById('container-pedidos');
       if (!pedidos || pedidos.length === 0) {
@@ -665,11 +420,12 @@
       pedidos.forEach(p => {
         let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
         const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
+        const idStr = String(p.id || '');
 
         container.innerHTML += `
           <div class="pedido-card ${p.status || 'pendente'}">
             <div class="pedido-header">
-              <span>Pedido #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
+              <span>Pedido #${idStr ? idStr.slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
               <span>Status: <strong>${statusTexto}</strong></span>
             </div>
             <p><strong>Itens:</strong><br>${itensTxt}</p>
@@ -679,17 +435,17 @@
             ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
             
             <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="btn btn-imprimir" onclick="imprimirPedido(${p.id})">🖨️ Imprimir 80mm / PDF</button>
+              <button class="btn btn-imprimir" onclick="imprimirPedido('${idStr}')">🖨️ Imprimir 80mm / PDF</button>
               
               ${p.status === 'pendente' ? `
-                <button class="btn btn-info" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
+                <button class="btn btn-info" onclick="mudarStatusPedido('${idStr}', 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
               ` : ''}
 
               ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
-                <button class="btn btn-warning" onclick="notificarSaiuEntrega(${p.id})">🛵 Saiu para Entrega (Enviar Whats)</button>
+                <button class="btn btn-warning" onclick="notificarSaiuEntrega('${idStr}')">🛵 Saiu para Entrega</button>
               ` : ''}
 
-              <button class="btn btn-danger" onclick="removerPedido(${p.id})">✅ Concluir / Apagar</button>
+              <button class="btn btn-danger" onclick="removerPedido('${idStr}')">✅ Concluir / Apagar</button>
             </div>
           </div>
         `;
@@ -697,7 +453,7 @@
     }
 
     function mudarStatusPedido(id, status) {
-      const pedido = pedidosAtuais.find(p => p.id === id);
+      const pedido = pedidosAtuais.find(p => String(p.id) === String(id));
       if (pedido) {
         pedido.status = status;
         renderizarPedidos(pedidosAtuais);
@@ -706,73 +462,15 @@
     }
 
     function notificarSaiuEntrega(id) {
-      const pedido = pedidosAtuais.find(p => p.id === id);
+      const pedido = pedidosAtuais.find(p => String(p.id) === String(id));
       if (!pedido) return;
 
       pedido.status = 'saiu_entrega';
       renderizarPedidos(pedidosAtuais);
       socket.emit('alterarStatusPedido', { id, status: 'saiu_entrega' });
-
-      const numOriginal = pedido.whatsapp || pedido.telefone || '';
-      
-      if (numOriginal) {
-        const numLimpo = numOriginal.replace(/\D/g, '');
-        const numFormatado = numLimpo.startsWith('55') ? numLimpo : `55${numLimpo}`;
-        const mensagem = encodeURIComponent(`Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} do Trailer Express acabou de sair para entrega!`);
-        
-        window.open(`https://api.whatsapp.com/send?phone=${numFormatado}&text=${mensagem}`, '_blank');
-      } else {
-        alert('Este pedido não possui um número de WhatsApp cadastrado!');
-      }
     }
 
     function removerPedido(id) {
-      if (confirm("Deseja realmente finalizar e remover este pedido do painel?")) {
-        pedidosAtuais = pedidosAtuais.filter(p => p.id !== id);
-        renderizarPedidos(pedidosAtuais);
-        socket.emit('removerPedido', id);
-      }
-    }
-
-    function imprimirPedido(id) {
-      const p = pedidosAtuais.find(item => item.id === id);
-      if (!p) return alert('Pedido não encontrado!');
-
-      const area = document.getElementById('area-impressao-termica');
-      area.style.display = 'block';
-
-      let itensFormatados = p.itens ? p.itens.map(i => `
-        <div class="item-cupom">
-          <strong>${i.quantidade}x</strong> ${i.nome}
-        </div>
-      `).join('') : '';
-
-      area.innerHTML = `
-        <h2>TRAILER EXPRESS</h2>
-        <div style="text-align: center; font-size: 10px;">Comprovante de Pedido</div>
-        <div class="divisoria"></div>
-        <p><strong>PEDIDO:</strong> #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.data || ''}</p>
-        <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
-        ${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
-        <p><strong>ENDEREÇO:</strong> ${p.endereco || 'Retirada'}</p>
-        <div class="divisoria"></div>
-        <p><strong>ITENS SOLICITADOS:**</p>
-        ${itensFormatados}
-        <div class="divisoria"></div>
-        <p><strong>PAGAMENTO:</strong> ${(p.pagamento || '').toUpperCase()}</p>
-        ${p.troco ? `<p><strong>TROCO PARA:</strong> R$ ${p.troco}</p>` : ''}
-        <p style="font-size: 14px; margin-top: 4px;"><strong>TOTAL: R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></p>
-        ${p.observacao ? `<div class="divisoria"></div><p><strong>OBS:</strong> ${p.observacao}</p>` : ''}
-        <div class="divisoria"></div>
-        <div style="text-align: center; font-size: 10px; margin-top: 8px;">Obrigado pela preferência! 🍔</div>
-      `;
-
-      window.print();
-
-      setTimeout(() => {
-        area.style.display = 'none';
-      }, 1000);
+      socket.emit('removerPedido', id);
     }
   </script>
-</body>
-</html>
