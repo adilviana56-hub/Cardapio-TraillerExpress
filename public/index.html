@@ -172,7 +172,7 @@
     </div>
   </div>
 
-  <!-- CARRINHO E FINALIZAÇÃO -->
+  <!-- CARRINHO -->
   <div class="carrinho-box" id="secao-carrinho">
     <h3>🛒 Seu Pedido</h3>
     <div id="itens-carrinho" style="margin-top: 10px;">
@@ -257,6 +257,9 @@
     let taxaEntregaCalculada = 0;
     let localizacaoCliente = null;
 
+    // Flag de controle para verificar se o cliente modificou o lanche mas esqueceu de adicionar
+    let lancheFoiModificado = false;
+
     // BASE OBRIGATÓRIA PARA LANCHE
     const PAO_BASE = { nome: 'Pão com Maionese Caseira', preco: 6.00 };
 
@@ -273,6 +276,20 @@
     }
 
     function rolarParaCarrinho() {
+      // TRAVA DE SEGURANÇA: Se o cliente mexeu nos ingredientes do lanche e tentar pular direto pro carrinho sem adicionar
+      if (lancheFoiModificado) {
+        const confirmar = confirm(
+          "⚠️ ATENÇÃO: Você personalizou seu lanche, mas ainda NÃO clicou em 'Adicionar este Lanche ao Pedido'!\n\n" +
+          "Deseja adicionar este lanche ao carrinho agora?"
+        );
+        if (confirmar) {
+          salvarLancheAtualNoCarrinho();
+          return;
+        } else {
+          lancheFoiModificado = false; // Desconsidera e deixa rolar
+        }
+      }
+
       const secaoCarrinho = document.getElementById('secao-carrinho');
       if (secaoCarrinho) {
         secaoCarrinho.scrollIntoView({ behavior: 'smooth' });
@@ -387,6 +404,9 @@
         }
       }
 
+      // Ativa a flag informando que o lanche foi modificado na montagem atual
+      lancheFoiModificado = lancheEmMontagem.ingredientes.length > 0;
+
       renderizarInterface(dadosCardapioGlobal);
     }
 
@@ -427,6 +447,8 @@
       contadorLanches++;
 
       lancheEmMontagem = { ingredientes: [] };
+      lancheFoiModificado = false; // Reseta a trava após adicionar com sucesso
+      
       renderizarInterface(dadosCardapioGlobal);
       atualizarCarrinho();
 
@@ -435,6 +457,20 @@
 
     function adicionarOutroItem(id, nome, preco) {
       if (!lojaAberta) return alert('A loja está fechada!');
+
+      // TRAVA DE SEGURANÇA: Se mexeu no lanche e tentou clicar em adicionar outra coisa (ex: bebida) sem salvar o lanche
+      if (lancheFoiModificado) {
+        const confirmar = confirm(
+          "⚠️ ATENÇÃO: Você personalizou seu lanche, mas ainda NÃO clicou em 'Adicionar este Lanche ao Pedido'!\n\n" +
+          "Deseja adicionar este lanche ao carrinho agora?"
+        );
+        if (confirmar) {
+          salvarLancheAtualNoCarrinho();
+          return;
+        } else {
+          lancheFoiModificado = false;
+        }
+      }
 
       const itemExistente = carrinho.find(i => i.idUnico === 'prod_' + id);
       if (itemExistente) {
@@ -587,6 +623,21 @@
 
     function enviarPedido() {
       if (!lojaAberta) return alert('A loja está fechada no momento!');
+
+      // TRAVA DE SEGURANÇA: Se o cliente mexeu nos ingredientes e tentou finalizar o pedido direto
+      if (lancheFoiModificado) {
+        const confirmar = confirm(
+          "⚠️ ATENÇÃO: Você personalizou seu lanche, mas ainda NÃO clicou em 'Adicionar este Lanche ao Pedido'!\n\n" +
+          "Deseja adicionar este lanche ao carrinho agora?"
+        );
+        if (confirmar) {
+          salvarLancheAtualNoCarrinho();
+          return;
+        } else {
+          lancheFoiModificado = false;
+        }
+      }
+
       if (carrinho.length === 0) return alert('Adicione pelo menos um item ao carrinho!');
 
       const nome = document.getElementById('cliente-nome').value.trim();
@@ -691,6 +742,7 @@
       carrinho = [];
       contadorLanches = 1;
       lancheEmMontagem = { ingredientes: [] };
+      lancheFoiModificado = false;
       taxaEntregaCalculada = 0;
       localizacaoCliente = null;
       atualizarCarrinho();
