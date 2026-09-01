@@ -712,7 +712,7 @@
 
       pedido.status = 'saiu_entrega';
       renderizarPedidos(pedidosAtuais);
-      socket.emit('alterarStatusPedido', { id, status: 'saiu_entrega' });
+      socket.emit('notificarSaiuParaEntrega', id);
     }
 
     function removerPedido(id) {
