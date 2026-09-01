@@ -16,6 +16,13 @@
     .btn-aberto { background: #28a745; }
     .btn-fechado { background: #dc3545; }
 
+    /* ESTILOS DAS ABAS DO PAINEL */
+    .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
+    .tab-btn { background: #e9ecef; border: none; padding: 10px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 14px; color: #495057; }
+    .tab-btn.active { background: #cc0000; color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
     .secao { background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .secao h2 { font-size: 17px; margin-bottom: 12px; border-bottom: 2px solid #eee; padding-bottom: 6px; color: #444; }
 
@@ -49,6 +56,16 @@
     .pedido-card.saiu_entrega { border-color: #28a745; }
     .pedido-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 6px; font-weight: bold; margin-bottom: 8px; }
 
+    /* CARDS DO RELATÓRIO FINANCEIRO */
+    .grid-financeiro { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .card-fin { background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; text-align: center; }
+    .card-fin h4 { font-size: 13px; color: #6c757d; margin-bottom: 5px; text-transform: uppercase; }
+    .card-fin .valor { font-size: 20px; font-weight: bold; color: #28a745; }
+
+    .tabela-relatorio { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+    .tabela-relatorio th, .tabela-relatorio td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
+    .tabela-relatorio th { background: #e9ecef; }
+
     /* ESTILO PARA IMPRESSÃO TÉRMICA DE 80MM OU SALVAR EM PDF */
     @media print {
       body * { visibility: hidden; }
@@ -80,40 +97,106 @@
     </button>
   </header>
 
-  <!-- GERENCIAR CATEGORIAS -->
-  <div class="secao">
-    <h2>📁 Gerenciar Categorias</h2>
-    <div style="display: flex; gap: 10px;">
-      <input type="text" id="nova-categoria-nome" placeholder="Nome da Categoria (Ex: Lanche, Bebidas)" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-      <button class="btn btn-sucesso" onclick="adicionarCategoria()">+ Adicionar Categoria</button>
+  <!-- ABAS DE NAVEGAÇÃO -->
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="trocarAba('pedidos')">🔔 Pedidos & Cardápio</button>
+    <button class="tab-btn" onclick="trocarAba('financeiro')">📊 Relatório Financeiro</button>
+  </div>
+
+  <!-- ABA 1: PEDIDOS E GERENCIAMENTO DO CARDÁPIO -->
+  <div id="tab-pedidos" class="tab-content active">
+    <!-- GERENCIAR CATEGORIAS -->
+    <div class="secao">
+      <h2>📁 Gerenciar Categorias</h2>
+      <div style="display: flex; gap: 10px;">
+        <input type="text" id="nova-categoria-nome" placeholder="Nome da Categoria (Ex: Lanche, Bebidas)" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <button class="btn btn-sucesso" onclick="adicionarCategoria()">+ Adicionar Categoria</button>
+      </div>
+    </div>
+
+    <!-- CADASTRAR PRODUTO -->
+    <div class="secao">
+      <h2>➕ Cadastrar Novo Produto</h2>
+      <div class="form-grid">
+        <select id="prod-categoria">
+          <option value="">Selecione a Categoria...</option>
+        </select>
+        <input type="text" id="prod-nome" placeholder="Nome do Produto">
+        <input type="number" step="0.50" id="prod-preco" placeholder="Preço (R$)">
+        <input type="text" id="prod-descricao" placeholder="Descrição (Opcional)">
+      </div>
+      <button class="btn btn-sucesso" onclick="adicionarProduto()">Cadastrar Produto</button>
+    </div>
+
+    <!-- LISTA E EDIÇÃO DE CARDÁPIO -->
+    <div class="secao">
+      <h2>📋 Cardápio Atual</h2>
+      <div id="container-cardapio"></div>
+    </div>
+
+    <!-- PEDIDOS RECEBIDOS -->
+    <div class="secao">
+      <h2>🔔 Pedidos Recebidos</h2>
+      <div id="container-pedidos">
+        <p style="color: #777;">Nenhum pedido ativo no momento.</p>
+      </div>
     </div>
   </div>
 
-  <!-- CADASTRAR PRODUTO -->
-  <div class="secao">
-    <h2>➕ Cadastrar Novo Produto</h2>
-    <div class="form-grid">
-      <select id="prod-categoria">
-        <option value="">Selecione a Categoria...</option>
-      </select>
-      <input type="text" id="prod-nome" placeholder="Nome do Produto">
-      <input type="number" step="0.50" id="prod-preco" placeholder="Preço (R$)">
-      <input type="text" id="prod-descricao" placeholder="Descrição (Opcional)">
-    </div>
-    <button class="btn btn-sucesso" onclick="adicionarProduto()">Cadastrar Produto</button>
-  </div>
+  <!-- ABA 2: RELATÓRIO FINANCEIRO (SUPABASE) -->
+  <div id="tab-financeiro" class="tab-content">
+    <div class="secao">
+      <h2>📊 Resumo Financeiro de Vendas</h2>
+      
+      <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+        <label><strong>Filtrar por Período:</strong></label>
+        <select id="filtro-periodo" onchange="carregarRelatorioFinanceiro()" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc;">
+          <option value="hoje">Hoje</option>
+          <option value="semana">Últimos 7 dias</option>
+          <option value="mes">Este Mês</option>
+          <option value="todos">Todo o Histórico</option>
+        </select>
+      </div>
 
-  <!-- LISTA E EDIÇÃO DE CARDÁPIO -->
-  <div class="secao">
-    <h2>📋 Cardápio Atual</h2>
-    <div id="container-cardapio"></div>
-  </div>
+      <div class="grid-financeiro">
+        <div class="card-fin">
+          <h4>Faturamento Total</h4>
+          <div class="valor" id="fin-faturamento">R$ 0,00</div>
+        </div>
+        <div class="card-fin">
+          <h4>Venda de Produtos</h4>
+          <div class="valor" id="fin-produtos" style="color: #007bff;">R$ 0,00</div>
+        </div>
+        <div class="card-fin">
+          <h4>Taxas de Entrega</h4>
+          <div class="valor" id="fin-taxas" style="color: #17a2b8;">R$ 0,00</div>
+        </div>
+        <div class="card-fin">
+          <h4>Total de Pedidos</h4>
+          <div class="valor" id="fin-qtd" style="color: #333;">0</div>
+        </div>
+      </div>
 
-  <!-- PEDIDOS RECEBIDOS -->
-  <div class="secao">
-    <h2>🔔 Pedidos Recebidos</h2>
-    <div id="container-pedidos">
-      <p style="color: #777;">Nenhum pedido ativo no momento.</p>
+      <h3 style="font-size: 15px; margin-top: 20px; color: #444;">Histórico de Pedidos no Período</h3>
+      <div style="overflow-x: auto;">
+        <table class="tabela-relatorio">
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Entrega</th>
+              <th>Pagamento</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-relatorio-corpo">
+            <tr>
+              <td colspan="6" style="text-align: center; color: #888;">Carregando dados do banco...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -125,6 +208,58 @@
     let lojaAberta = true;
     let cardapioAtual = [];
     let pedidosAtuais = [];
+
+    // NAVEGAÇÃO ENTRE ABAS
+    function trocarAba(aba) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      if (aba === 'pedidos') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('tab-pedidos').classList.add('active');
+      } else if (aba === 'financeiro') {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('tab-financeiro').classList.add('active');
+        carregarRelatorioFinanceiro();
+      }
+    }
+
+    // BUSCAR DADOS FINANCEIROS NO SUPABASE
+    function carregarRelatorioFinanceiro() {
+      const filtro = document.getElementById('filtro-periodo').value;
+      socket.emit('obterRelatorioFinanceiro', filtro);
+    }
+
+    // OUVIR RESPOSTA DO BANCO DE DADOS
+    socket.on('respostaRelatorioFinanceiro', (data) => {
+      const resumo = data.resumo || {};
+      const lista = data.pedidos || [];
+
+      document.getElementById('fin-faturamento').innerText = `R$ ${Number(resumo.faturamento_total || 0).toFixed(2).replace('.', ',')}`;
+      document.getElementById('fin-produtos').innerText = `R$ ${Number(resumo.total_produtos || 0).toFixed(2).replace('.', ',')}`;
+      document.getElementById('fin-taxas').innerText = `R$ ${Number(resumo.total_taxas || 0).toFixed(2).replace('.', ',')}`;
+      document.getElementById('fin-qtd').innerText = resumo.qtd_pedidos || 0;
+
+      const corpo = document.getElementById('tabela-relatorio-corpo');
+      if (lista.length === 0) {
+        corpo.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">Nenhum pedido encontrado no período selecionado.</td></tr>';
+        return;
+      }
+
+      corpo.innerHTML = '';
+      lista.forEach(p => {
+        corpo.innerHTML += `
+          <tr>
+            <td>${p.data_formatada || '-'}</td>
+            <td>#${p.id ? p.id.toString().slice(-4) : '---'}</td>
+            <td>${p.cliente || 'Cliente'}</td>
+            <td>${(p.tipo_entrega || 'entrega').toUpperCase()}</td>
+            <td>${(p.pagamento || '-').toUpperCase()}</td>
+            <td><strong>R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></td>
+          </tr>
+        `;
+      });
+    });
 
     // Helper para verificar disponibilidade do produto de forma segura
     function produtoEstaAtivo(p) {
