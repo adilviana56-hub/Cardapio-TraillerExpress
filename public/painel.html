@@ -283,11 +283,11 @@
     // BUSCAR DADOS FINANCEIROS NO SUPABASE
     function carregarRelatorioFinanceiro() {
       const filtro = document.getElementById('filtro-periodo').value;
-      let payload = { filtro };
+      let payload = filtro;
 
       if (filtro === 'custom') {
-        payload.dataInicio = document.getElementById('filtro-data-inicio').value;
-        payload.dataFim = document.getElementById('filtro-data-fim').value;
+        // Se precisar de customizado no futuro
+        payload = 'custom';
       }
 
       socket.emit('obterRelatorioFinanceiro', payload);
@@ -314,6 +314,7 @@
       } else {
         corpo.innerHTML = '';
         pedidosHistoricoGeral.forEach(p => {
+          const idNum = p.id;
           const idStr = String(p.id || '');
           corpo.innerHTML += `
             <tr>
@@ -324,8 +325,8 @@
               <td>${(p.pagamento || '-').toUpperCase()}</td>
               <td><strong>R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></td>
               <td style="text-align: center; white-space: nowrap;">
-                <button class="btn btn-imprimir" style="padding: 4px 8px; font-size: 12px;" onclick="imprimirPedidoHistorico('${idStr}')">🖨️</button>
-                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirVendaHistorico('${idStr}')">🗑️</button>
+                <button class="btn btn-imprimir" style="padding: 4px 8px; font-size: 12px;" onclick="imprimirPedidoHistorico(${idNum})">🖨️</button>
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirVendaHistorico(${idNum})">🗑️</button>
               </td>
             </tr>
           `;
@@ -337,8 +338,7 @@
 
     // EXCLUIR REGISTRO DE VENDA/TESTE DO HISTÓRICO
     function excluirVendaHistorico(id) {
-      const idStr = String(id);
-      if (confirm(`Deseja realmente excluir permanentemente a venda #${idStr.slice(-4)} do histórico financeiro?`)) {
+      if (confirm(`Deseja realmente excluir permanentemente a venda do histórico financeiro?`)) {
         socket.emit('excluirVendaHistorico', id);
         carregarRelatorioFinanceiro();
       }
@@ -346,14 +346,20 @@
 
     // IMPRIMIR PEDIDO DO RELATÓRIO HISTÓRICO
     function imprimirPedidoHistorico(id) {
-      const p = pedidosHistoricoGeral.find(item => String(item.id) === String(id));
-      if (!p) return alert('Pedido não encontrado no histórico!');
-      executarImpressaoTermica(p);
+      socket.emit('imprimirVendaHistorico', id);
     }
+
+    socket.on('executarImpressaoPedido', (p) => {
+      executarImpressaoTermica(p);
+    });
+
+    socket.on('erroImpressao', (msg) => {
+      alert(msg);
+    });
 
     // IMPRIMIR PEDIDO DA ABA DE PEDIDOS ATIVOS
     function imprimirPedido(id) {
-      const p = pedidosAtuais.find(item => String(item.id) === String(id));
+      const p = pedidosAtuais.find(item => Number(item.id) === Number(id));
       if (!p) return alert('Pedido ativo não encontrado!');
       executarImpressaoTermica(p);
     }
@@ -364,7 +370,12 @@
       area.style.display = 'block';
 
       const idStr = String(p.id || '');
-      let itensFormatados = p.itens ? p.itens.map(i => `
+      let itensLista = p.itens;
+      if (typeof itensLista === 'string') {
+        try { itensLista = JSON.parse(itensLista); } catch(e) { itensLista = []; }
+      }
+
+      let itensFormatados = Array.isArray(itensLista) ? itensLista.map(i => `
         <div class="item-cupom">
           <strong>${i.quantidade}x</strong> ${i.nome}
         </div>
@@ -407,8 +418,13 @@
         const valorTotal = parseFloat(p.total || 0);
         faturamentoPorDia[dataDia] = (faturamentoPorDia[dataDia] || 0) + valorTotal;
 
-        if (p.itens && Array.isArray(p.itens)) {
-          p.itens.forEach(item => {
+        let itensLista = p.itens;
+        if (typeof itensLista === 'string') {
+          try { itensLista = JSON.parse(itensLista); } catch(e) { itensLista = []; }
+        }
+
+        if (itensLista && Array.isArray(itensLista)) {
+          itensLista.forEach(item => {
             const nomeItem = item.nome || 'Produto';
             const qtdItem = parseInt(item.quantidade || 1, 10);
             contagemProdutos[nomeItem] = (contagemProdutos[nomeItem] || 0) + qtdItem;
@@ -665,6 +681,7 @@
       pedidos.forEach(p => {
         let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
         const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
+        const idNum = p.id;
         const idStr = String(p.id || '');
 
         container.innerHTML += `
@@ -680,17 +697,17 @@
             ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
             
             <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="btn btn-imprimir" onclick="imprimirPedido('${idStr}')">🖨️ Imprimir 80mm / PDF</button>
+              <button class="btn btn-imprimir" onclick="imprimirPedido(${idNum})">🖨️ Imprimir 80mm / PDF</button>
               
               ${p.status === 'pendente' ? `
-                <button class="btn btn-info" onclick="mudarStatusPedido('${idStr}', 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
+                <button class="btn btn-info" onclick="mudarStatusPedido(${idNum}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
               ` : ''}
 
               ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
-                <button class="btn btn-warning" onclick="notificarSaiuEntrega('${idStr}')">🛵 Saiu para Entrega</button>
+                <button class="btn btn-warning" onclick="mudarStatusPedido(${idNum}, 'saiu_entrega')">🛵 Saiu para Entrega</button>
               ` : ''}
 
-              <button class="btn btn-danger" onclick="removerPedido('${idStr}')">✅ Concluir / Apagar</button>
+              <button class="btn btn-danger" onclick="removerPedido(${idNum})">✅ Concluir / Apagar</button>
             </div>
           </div>
         `;
@@ -698,25 +715,11 @@
     }
 
     function mudarStatusPedido(id, status) {
-      const pedido = pedidosAtuais.find(p => String(p.id) === String(id));
-      if (pedido) {
-        pedido.status = status;
-        renderizarPedidos(pedidosAtuais);
-      }
-      socket.emit('alterarStatusPedido', { id, status });
-    }
-
-    function notificarSaiuEntrega(id) {
-      const pedido = pedidosAtuais.find(p => String(p.id) === String(id));
-      if (!pedido) return;
-
-      pedido.status = 'saiu_entrega';
-      renderizarPedidos(pedidosAtuais);
-      socket.emit('notificarSaiuParaEntrega', id);
+      socket.emit('alterarStatusPedido', { id: Number(id), status });
     }
 
     function removerPedido(id) {
-      socket.emit('removerPedido', id);
+      socket.emit('removerPedido', Number(id));
     }
   </script>
 </body>
