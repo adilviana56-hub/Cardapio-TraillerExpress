@@ -251,6 +251,22 @@
     let pedidosHistoricoGeral = []; 
     let chartInstancia = null;
 
+    // Ouve a notificação enviada pelo servidor quando muda para "saiu_entrega"
+    socket.on('notificacaoCliente', (data) => {
+      const p = pedidosAtuais.find(item => Number(item.id) === Number(data.pedidoId));
+      if (p && (p.whatsapp || p.telefone)) {
+        let numero = p.whatsapp || p.telefone;
+        numero = numero.replace(/\D/g, '');
+        if (!numero.startsWith('55') && numero.length <= 11) {
+          numero = '55' + numero;
+        }
+
+        const textoCodificado = encodeURIComponent(data.mensagem);
+        const urlWhatsApp = `https://api.whatsapp.com/send?phone=${numero}&text=${textoCodificado}`;
+        window.open(urlWhatsApp, '_blank');
+      }
+    });
+
     // Alternar visibilidade das datas customizadas
     document.getElementById('filtro-periodo').addEventListener('change', function() {
       const blocoCustom = document.getElementById('bloco-datas-custom');
@@ -286,7 +302,6 @@
       let payload = filtro;
 
       if (filtro === 'custom') {
-        // Se precisar de customizado no futuro
         payload = 'custom';
       }
 
@@ -593,134 +608,134 @@
                     ${ativo ? 'Disponível' : 'Esgotado'}
                   </button>
                   <button class="btn btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="excluirProduto(${p.id})">🗑️</button>
-                </div>
               </div>
-            `;
-          });
-        }
-
-        html += `</div>`;
-        container.innerHTML += html;
-      });
-    }
-
-    function adicionarCategoria() {
-      const input = document.getElementById('nova-categoria-nome');
-      if (input.value.trim()) {
-        socket.emit('adicionarCategoria', input.value.trim());
-        input.value = '';
-      }
-    }
-
-    function editarCategoria(nomeAntigo) {
-      const novoNome = prompt("Digite o novo nome para a categoria:", nomeAntigo);
-      if (novoNome && novoNome.trim()) {
-        socket.emit('editarCategoria', { nomeAntigo, novoNome: novoNome.trim() });
-      }
-    }
-
-    function excluirCategoria(nomeCategoria) {
-      if (confirm(`Excluir a categoria "${nomeCategoria}" e todos os seus produtos?`)) {
-        socket.emit('excluirCategoria', nomeCategoria);
-      }
-    }
-
-    function adicionarProduto() {
-      const categoria = document.getElementById('prod-categoria').value;
-      const nome = document.getElementById('prod-nome').value.trim();
-      const preco = document.getElementById('prod-preco').value;
-      const descricao = document.getElementById('prod-descricao').value.trim();
-
-      if (!categoria || !nome || !preco) {
-        return alert('Preencha a Categoria, Nome e Preço!');
-      }
-
-      socket.emit('adicionarProduto', { categoria, nome, preco: parseFloat(preco), descricao, ativo: true, disponivel: true });
-
-      document.getElementById('prod-nome').value = '';
-      document.getElementById('prod-preco').value = '';
-      document.getElementById('prod-descricao').value = '';
-    }
-
-    function editarProduto(idProduto, nomeAtual, precoAtual, descAtual) {
-      const novoNome = prompt("Nome do Produto:", nomeAtual);
-      if (novoNome === null) return;
-
-      const novoPrecoStr = prompt("Preço (R$):", precoAtual);
-      if (novoPrecoStr === null) return;
-      const novoPreco = parseFloat(novoPrecoStr.replace(',', '.'));
-
-      const novaDesc = prompt("Descrição:", descAtual);
-      if (novaDesc === null) return;
-
-      if (!novoNome.trim() || isNaN(novoPreco)) {
-        return alert("Nome ou Preço inválidos!");
-      }
-
-      socket.emit('editarProduto', { idProduto, nome: novoNome, preco: novoPreco, descricao: novaDesc });
-    }
-
-    function toggleProduto(idProduto, statusNovo) {
-      socket.emit('mudarStatusProduto', { idProduto, disponivel: statusNovo, ativo: statusNovo });
-    }
-
-    function excluirProduto(idProduto) {
-      if (confirm("Deseja realmente excluir este produto?")) {
-        socket.emit('excluirProduto', idProduto);
-      }
-    }
-
-    function renderizarPedidos(pedidos) {
-      const container = document.getElementById('container-pedidos');
-      if (!pedidos || pedidos.length === 0) {
-        container.innerHTML = '<p style="color: #777;">Nenhum pedido ativo no momento.</p>';
-        return;
-      }
-
-      container.innerHTML = '';
-      pedidos.forEach(p => {
-        let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
-        const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
-        const idNum = p.id;
-        const idStr = String(p.id || '');
-
-        container.innerHTML += `
-          <div class="pedido-card ${p.status || 'pendente'}">
-            <div class="pedido-header">
-              <span>Pedido #${idStr ? idStr.slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
-              <span>Status: <strong>${statusTexto}</strong></span>
             </div>
-            <p><strong>Itens:</strong><br>${itensTxt}</p>
-            <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')} | <strong>Pagamento:</strong> ${(p.pagamento || '').toUpperCase()}</p>
-            <p><strong>Entrega:</strong> ${p.endereco || 'Retirada / Balcão'}</p>
-            ${p.whatsapp || p.telefone ? `<p><strong>WhatsApp:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
-            ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
-            
-            <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="btn btn-imprimir" onclick="imprimirPedido(${idNum})">🖨️ Imprimir 80mm / PDF</button>
-              
-              ${p.status === 'pendente' ? `
-                <button class="btn btn-info" onclick="mudarStatusPedido(${idNum}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
-              ` : ''}
+          `;
+        });
+      }
 
-              ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
-                <button class="btn btn-warning" onclick="mudarStatusPedido(${idNum}, 'saiu_entrega')">🛵 Saiu para Entrega</button>
-              ` : ''}
+      html += `</div>`;
+      container.innerHTML += html;
+    });
+  }
 
-              <button class="btn btn-danger" onclick="removerPedido(${idNum})">✅ Concluir / Apagar</button>
-            </div>
+  function adicionarCategoria() {
+    const input = document.getElementById('nova-categoria-nome');
+    if (input.value.trim()) {
+      socket.emit('adicionarCategoria', input.value.trim());
+      input.value = '';
+    }
+  }
+
+  function editarCategoria(nomeAntigo) {
+    const novoNome = prompt("Digite o novo nome para a categoria:", nomeAntigo);
+    if (novoNome && novoNome.trim()) {
+      socket.emit('editarCategoria', { nomeAntigo, novoNome: novoNome.trim() });
+    }
+  }
+
+  function excluirCategoria(nomeCategoria) {
+    if (confirm(`Excluir a categoria "${nomeCategoria}" e todos os seus produtos?`)) {
+      socket.emit('excluirCategoria', nomeCategoria);
+    }
+  }
+
+  function adicionarProduto() {
+    const categoria = document.getElementById('prod-categoria').value;
+    const nome = document.getElementById('prod-nome').value.trim();
+    const preco = document.getElementById('prod-preco').value;
+    const descricao = document.getElementById('prod-descricao').value.trim();
+
+    if (!categoria || !nome || !preco) {
+      return alert('Preencha a Categoria, Nome e Preço!');
+    }
+
+    socket.emit('adicionarProduto', { categoria, nome, preco: parseFloat(preco), descricao, ativo: true, disponivel: true });
+
+    document.getElementById('prod-nome').value = '';
+    document.getElementById('prod-preco').value = '';
+    document.getElementById('prod-descricao').value = '';
+  }
+
+  function editarProduto(idProduto, nomeAtual, precoAtual, descAtual) {
+    const novoNome = prompt("Nome do Produto:", nomeAtual);
+    if (novoNome === null) return;
+
+    const novoPrecoStr = prompt("Preço (R$):", precoAtual);
+    if (novoPrecoStr === null) return;
+    const novoPreco = parseFloat(novoPrecoStr.replace(',', '.'));
+
+    const novaDesc = prompt("Descrição:", descAtual);
+    if (novaDesc === null) return;
+
+    if (!novoNome.trim() || isNaN(novoPreco)) {
+      return alert("Nome ou Preço inválidos!");
+    }
+
+    socket.emit('editarProduto', { idProduto, nome: novoNome, preco: novoPreco, descricao: novaDesc });
+  }
+
+  function toggleProduto(idProduto, statusNovo) {
+    socket.emit('mudarStatusProduto', { idProduto, disponivel: statusNovo, ativo: statusNovo });
+  }
+
+  function excluirProduto(idProduto) {
+    if (confirm("Deseja realmente excluir este produto?")) {
+      socket.emit('excluirProduto', idProduto);
+    }
+  }
+
+  function renderizarPedidos(pedidos) {
+    const container = document.getElementById('container-pedidos');
+    if (!pedidos || pedidos.length === 0) {
+      container.innerHTML = '<p style="color: #777;">Nenhum pedido ativo no momento.</p>';
+      return;
+    }
+
+    container.innerHTML = '';
+    pedidos.forEach(p => {
+      let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
+      const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
+      const idNum = p.id;
+      const idStr = String(p.id || '');
+
+      container.innerHTML += `
+        <div class="pedido-card ${p.status || 'pendente'}">
+          <div class="pedido-header">
+            <span>Pedido #${idStr ? idStr.slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
+            <span>Status: <strong>${statusTexto}</strong></span>
           </div>
-        `;
-      });
-    }
+          <p><strong>Itens:</strong><br>${itensTxt}</p>
+          <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')} | <strong>Pagamento:</strong> ${(p.pagamento || '').toUpperCase()}</p>
+          <p><strong>Entrega:</strong> ${p.endereco || 'Retirada / Balcão'}</p>
+          ${p.whatsapp || p.telefone ? `<p><strong>WhatsApp:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
+          ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
+          
+          <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-imprimir" onclick="imprimirPedido(${idNum})">🖨️ Imprimir 80mm / PDF</button>
+            
+            ${p.status === 'pendente' ? `
+              <button class="btn btn-info" onclick="mudarStatusPedido(${idNum}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
+            ` : ''}
 
-    function mudarStatusPedido(id, status) {
-      socket.emit('alterarStatusPedido', { id: Number(id), status });
-    }
+            ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
+              <button class="btn btn-warning" onclick="mudarStatusPedido(${idNum}, 'saiu_entrega')">🛵 Saiu para Entrega</button>
+            ` : ''}
 
-    function removerPedido(id) {
-      socket.emit('removerPedido', Number(id));
-    }
+            <button class="btn btn-danger" onclick="removerPedido(${idNum})">✅ Concluir / Apagar</button>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  function mudarStatusPedido(id, status) {
+    socket.emit('alterarStatusPedido', { id: Number(id), status });
+  }
+
+  function removerPedido(id) {
+    socket.emit('removerPedido', Number(id));
+  }
   </script>
 </body>
 </html>
