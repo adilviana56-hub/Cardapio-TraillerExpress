@@ -363,8 +363,8 @@ io.on('connection', (socket) => {
     if (process.env.DATABASE_URL) {
       try {
         await pool.query(`
-          INSERT INTO pedidos (id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens, data_criacao)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+          INSERT INTO pedidos (id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           ON CONFLICT (id) DO NOTHING
         `, [
           pedido.id,
