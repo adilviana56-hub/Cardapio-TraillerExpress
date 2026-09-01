@@ -116,11 +116,11 @@ function calcularTaxaEntrega(clienteLat, clienteLng, formaPagamento = '') {
 
   const pagamentoStr = String(formaPagamento).toLowerCase();
   const pagamentoCartao = pagamentoStr.includes('cartao') || 
-                          pagamentoStr.includes('cartão') ||
-                          pagamentoStr.includes('debito') ||
-                          pagamentoStr.includes('débito') ||
-                          pagamentoStr.includes('credito') ||
-                          pagamentoStr.includes('crédito');
+                         pagamentoStr.includes('cartão') ||
+                         pagamentoStr.includes('debito') ||
+                         pagamentoStr.includes('débito') ||
+                         pagamentoStr.includes('credito') ||
+                         pagamentoStr.includes('crédito');
 
   if (pagamentoCartao) {
     taxaCalculada += 2.00;
@@ -422,6 +422,17 @@ io.on('connection', (socket) => {
     pedidosAtivos = pedidosAtivos.filter(p => p.id !== idPedido);
     salvarPedidos();
     io.emit('atualizarListaPedidos', pedidosAtivos);
+  });
+
+  // EXCLUIR VENDA DO HISTÓRICO FINANCEIRO (SUPABASE)
+  socket.on('excluirVendaHistorico', async (id) => {
+    if (!process.env.DATABASE_URL) return;
+
+    try {
+      await pool.query('DELETE FROM pedidos WHERE id = $1', [id]);
+    } catch (err) {
+      console.error("Erro ao excluir venda do histórico no Supabase:", err);
+    }
   });
 
   // BUSCAR RELATÓRIOS FINANCEIROS DO SUPABASE
