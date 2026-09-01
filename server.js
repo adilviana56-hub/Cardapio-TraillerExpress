@@ -15,7 +15,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Inicializa a tabela 'pedidos' no banco de dados se ela ainda não existir
+// Inicializa a tabela 'pedidos' e 'cardapio' no banco de dados se elas ainda não existirem
 async function initDb() {
   if (!process.env.DATABASE_URL) {
     console.log("⚠️ Variável DATABASE_URL não encontrada no ambiente. Verifique o Render.");
@@ -40,9 +40,23 @@ async function initDb() {
         data_criacao TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    console.log("🟢 Conectado ao Supabase (PostgreSQL) e tabela 'pedidos' pronta!");
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cardapio (
+        id SERIAL PRIMARY KEY,
+        categoria VARCHAR(255) NOT NULL,
+        produtos JSONB NOT NULL
+      );
+    `);
+
+    console.log("🟢 Conectado ao Supabase (PostgreSQL) e tabelas prontas!");
+    
+    // Carrega o cardápio do banco após inicializar
+    dadosCardapio = await carregarCardapioDoBanco();
+
   } catch (err) {
     console.error("🔴 Erro ao inicializar o banco de dados no Supabase:", err);
+    dadosCardapio = carregarCardapio();
   }
 }
 initDb();
@@ -178,6 +192,64 @@ function carregarCardapio() {
   ];
 }
 
+// Função assíncrona para carregar o cardápio do Supabase
+async function carregarCardapioDoBanco() {
+  if (!process.env.DATABASE_URL) {
+    return carregarCardapio();
+  }
+
+  try {
+    const res = await pool.query('SELECT categoria, produtos FROM cardapio ORDER BY id ASC');
+    if (res.rows.length > 0) {
+      const cardapioFormatado = res.rows.map(row => ({
+        categoria: row.categoria,
+        produtos: row.produtos
+      }));
+      return normalizarCardapio(cardapioFormatado);
+    }
+  } catch (err) {
+    console.error("Erro ao carregar cardápio do Supabase:", err);
+  }
+
+  return carregarCardapio();
+}
+
+// Função assíncrona para salvar todo o cardápio no Supabase
+async function salvarCardapioNoBanco() {
+  if (!process.env.DATABASE_URL) {
+    try {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(dadosCardapio, null, 2), 'utf8');
+    } catch (err) {
+      console.error("Erro ao salvar cardapio.json:", err);
+    }
+    return;
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM cardapio');
+      
+      for (const cat of dadosCardapio) {
+        await client.query(
+          'INSERT INTO cardapio (categoria, produtos) VALUES ($1, $2)',
+          [cat.categoria, JSON.stringify(cat.produtos || [])]
+        );
+      }
+      
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error("Erro ao salvar cardápio no Supabase:", err);
+  }
+}
+
 function carregarPedidos() {
   if (fs.existsSync(PEDIDOS_FILE)) {
     try {
@@ -190,14 +262,6 @@ function carregarPedidos() {
   return [];
 }
 
-function salvarCardapio() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(dadosCardapio, null, 2), 'utf8');
-  } catch (err) {
-    console.error("Erro ao salvar cardapio.json:", err);
-  }
-}
-
 function salvarPedidos() {
   try {
     fs.writeFileSync(PEDIDOS_FILE, JSON.stringify(pedidosAtivos, null, 2), 'utf8');
@@ -206,7 +270,7 @@ function salvarPedidos() {
   }
 }
 
-let dadosCardapio = carregarCardapio();
+let dadosCardapio = [];
 let pedidosAtivos = carregarPedidos();
 let lojaAberta = configLoja.lojaAberta !== undefined ? configLoja.lojaAberta : true;
 
@@ -258,7 +322,7 @@ io.on('connection', (socket) => {
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  socket.on('mudarStatusProduto', ({ idProduto, disponivel }) => {
+  socket.on('mudarStatusProduto', async ({ idProduto, disponivel }) => {
     dadosCardapio.forEach(cat => {
       const lista = cat.produtos || cat.itens || [];
       const prod = lista.find(p => p.id === idProduto);
@@ -267,11 +331,11 @@ io.on('connection', (socket) => {
         prod.disponivel = disponivel;
       }
     });
-    salvarCardapio();
+    await salvarCardapioNoBanco();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  socket.on('editarProduto', ({ idProduto, nome, preco, descricao }) => {
+  socket.on('editarProduto', async ({ idProduto, nome, preco, descricao }) => {
     dadosCardapio.forEach(cat => {
       const lista = cat.produtos || cat.itens || [];
       const prod = lista.find(p => p.id === idProduto);
@@ -283,50 +347,50 @@ io.on('connection', (socket) => {
         if (prod.disponivel === undefined) prod.disponivel = true;
       }
     });
-    salvarCardapio();
+    await salvarCardapioNoBanco();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  socket.on('excluirProduto', (idProduto) => {
+  socket.on('excluirProduto', async (idProduto) => {
     dadosCardapio.forEach(cat => {
       if (cat.produtos) cat.produtos = cat.produtos.filter(p => p.id !== idProduto);
       if (cat.itens) cat.itens = cat.itens.filter(p => p.id !== idProduto);
     });
-    salvarCardapio();
+    await salvarCardapioNoBanco();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  socket.on('adicionarCategoria', (nomeCategoria) => {
+  socket.on('adicionarCategoria', async (nomeCategoria) => {
     const nomeLimpo = nomeCategoria.trim();
     if (nomeLimpo !== "") {
       const existe = dadosCardapio.some(c => c.categoria.toLowerCase() === nomeLimpo.toLowerCase());
       if (!existe) {
         dadosCardapio.push({ categoria: nomeLimpo, produtos: [] });
-        salvarCardapio();
+        await salvarCardapioNoBanco();
         io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
       }
     }
   });
 
-  socket.on('editarCategoria', ({ nomeAntigo, novoNome }) => {
+  socket.on('editarCategoria', async ({ nomeAntigo, novoNome }) => {
     const nomeLimpo = novoNome.trim();
     if (nomeLimpo !== "") {
       const cat = dadosCardapio.find(c => c.categoria === nomeAntigo);
       if (cat) {
         cat.categoria = nomeLimpo;
-        salvarCardapio();
+        await salvarCardapioNoBanco();
         io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
       }
     }
   });
 
-  socket.on('excluirCategoria', (nomeCategoria) => {
+  socket.on('excluirCategoria', async (nomeCategoria) => {
     dadosCardapio = dadosCardapio.filter(c => c.categoria !== nomeCategoria);
-    salvarCardapio();
+    await salvarCardapioNoBanco();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
-  socket.on('adicionarProduto', (novoProduto) => {
+  socket.on('adicionarProduto', async (novoProduto) => {
     const catEnviada = (novoProduto.categoria || '').trim();
     
     let cat = dadosCardapio.find(c => c.categoria.toLowerCase() === catEnviada.toLowerCase());
@@ -348,7 +412,7 @@ io.on('connection', (socket) => {
       disponivel: true
     });
 
-    salvarCardapio();
+    await salvarCardapioNoBanco();
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
