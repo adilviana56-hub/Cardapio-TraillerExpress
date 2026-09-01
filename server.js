@@ -91,8 +91,7 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
     Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2); 
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
   return R * c * 1.30;
 }
@@ -432,6 +431,27 @@ io.on('connection', (socket) => {
       await pool.query('DELETE FROM pedidos WHERE id = $1', [id]);
     } catch (err) {
       console.error("Erro ao excluir venda do histórico no Supabase:", err);
+    }
+  });
+
+  // IMPRESSÃO INDIVIDUAL DE VENDA DO HISTÓRICO (SUPABASE)
+  socket.on('imprimirVendaHistorico', async (id) => {
+    if (!process.env.DATABASE_URL) return;
+
+    try {
+      const resPedido = await pool.query(`
+        SELECT id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
+        FROM pedidos WHERE id = $1
+      `, [id]);
+
+      if (resPedido.rows.length > 0) {
+        const pedidoEncontrado = resPedido.rows[0];
+        socket.emit('executarImpressaoPedido', pedidoEncontrado);
+      } else {
+        socket.emit('erroImpressao', 'Pedido não encontrado no histórico.');
+      }
+    } catch (err) {
+      console.error("Erro ao buscar pedido para impressão no Supabase:", err);
     }
   });
 
