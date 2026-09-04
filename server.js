@@ -121,7 +121,7 @@ async function initDb() {
       );
     `);
 
-    // Cria tabela de cardápio se não existir
+    // Cria tabela de cardápio e configurações se não existir
     await pool.query(`
       CREATE TABLE IF NOT EXISTS cardapio (
         id SERIAL PRIMARY KEY,
@@ -130,9 +130,30 @@ async function initDb() {
       );
     `);
 
+    // Tabela simples para guardar o status da loja e persistir na nuvem
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS configuracoes_loja (
+        chave VARCHAR(50) PRIMARY KEY,
+        valor TEXT
+      );
+    `);
+
     console.log("🟢 Conectado ao Supabase (PostgreSQL) com sucesso!");
 
-    // 1. Carregar Cardápio do Supabase
+    // 1. Carrega o status da loja do Supabase
+    const resLoja = await pool.query("SELECT valor FROM configuracoes_loja WHERE chave = 'lojaAberta'");
+    if (resLoja.rows.length > 0) {
+      lojaAberta = resLoja.rows[0].valor === 'true';
+      configLoja.lojaAberta = lojaAberta;
+    } else {
+      // Se não existir, salva o padrão inicial no banco
+      await pool.query(
+        "INSERT INTO configuracoes_loja (chave, valor) VALUES ('lojaAberta', $1) ON CONFLICT (chave) DO UPDATE SET valor = $1",
+        [String(lojaAberta)]
+      );
+    }
+
+    // 2. Carregar Cardápio do Supabase
     const resCardapio = await pool.query('SELECT categoria, produtos FROM cardapio ORDER BY id ASC');
     if (resCardapio.rows.length > 0) {
       const cardapioFormatado = resCardapio.rows.map(row => ({
@@ -140,10 +161,7 @@ async function initDb() {
         produtos: row.produtos
       }));
       dadosCardapio = normalizarCardapio(cardapioFormatado);
-      console.log("🟢 Cardápio carregado do Supabase!");
     } else {
-      // Se a tabela estiver vazia, popula com o cardápio padrão local (ou de arquivo) e salva no banco
-      console.log("ℹ️ Tabela de cardápio vazia no Supabase. Populando com dados iniciais...");
       dadosCardapio = normalizarCardapio(carregarCardapioLocal());
       await salvarCardapioNoBanco();
     }
@@ -195,12 +213,23 @@ async function salvarCardapioNoBanco() {
     }
     
     await client.query('COMMIT');
-    console.log("💾 Cardápio salvo com sucesso no Supabase!");
   } catch (e) {
     await client.query('ROLLBACK');
     console.error("Erro ao salvar cardápio no Supabase:", e);
   } finally {
     client.release();
+  }
+}
+
+async function salvarStatusLojaNoBanco(status) {
+  if (!process.env.DATABASE_URL) return;
+  try {
+    await pool.query(
+      "INSERT INTO configuracoes_loja (chave, valor) VALUES ('lojaAberta', $1) ON CONFLICT (chave) DO UPDATE SET valor = $1",
+      [String(status)]
+    );
+  } catch (err) {
+    console.error("Erro ao salvar status da loja no Supabase:", err);
   }
 }
 
@@ -316,10 +345,11 @@ io.on('connection', (socket) => {
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio, configEntrega: configLoja });
   });
 
-  socket.on('mudarStatusLoja', (status) => {
+  socket.on('mudarStatusLoja', async (status) => {
     lojaAberta = status;
     configLoja.lojaAberta = status;
     salvarConfig();
+    await salvarStatusLojaNoBanco(status);
     io.emit('atualizarEstado', { lojaAberta, cardapio: dadosCardapio });
   });
 
@@ -423,7 +453,6 @@ io.on('connection', (socket) => {
     pedidosAtivos.unshift(pedido);
     salvarPedidosLocal();
 
-    // Salva o pedido no banco de dados Supabase para os relatórios
     if (process.env.DATABASE_URL) {
       try {
         await pool.query(`
