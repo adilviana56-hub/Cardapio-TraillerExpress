@@ -532,8 +532,20 @@
 
     socket.on('novoPedido', (pedido) => {
       try {
-        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-        audio.play().catch(() => {});
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        for (let i = 0; i < 3; i++) {
+          setTimeout(() => {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+          }, i * 300);
+        }
       } catch (e) {}
 
       if (document.getElementById('tab-financeiro').classList.contains('active')) {
@@ -723,8 +735,8 @@
             ` : ''}
 
             <button class="btn btn-danger" onclick="removerPedido(${idNum})">✅ Concluir / Apagar</button>
-          </div>
         </div>
+      </div>
       `;
     });
   }
