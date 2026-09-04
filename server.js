@@ -15,53 +15,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Inicializa a tabela 'pedidos' e 'cardapio' no banco de dados se elas ainda não existirem
-async function initDb() {
-  if (!process.env.DATABASE_URL) {
-    console.log("⚠️ Variável DATABASE_URL não encontrada no ambiente. Verifique o Render.");
-    return;
-  }
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS pedidos (
-        id BIGINT PRIMARY KEY,
-        cliente VARCHAR(255),
-        whatsapp VARCHAR(50),
-        subtotal NUMERIC(10,2),
-        taxa_entrega NUMERIC(10,2),
-        total NUMERIC(10,2),
-        tipo_entrega VARCHAR(50),
-        endereco TEXT,
-        pagamento VARCHAR(50),
-        troco VARCHAR(50),
-        observacao TEXT,
-        status VARCHAR(50),
-        itens JSONB,
-        data_criacao TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS cardapio (
-        id SERIAL PRIMARY KEY,
-        categoria VARCHAR(255) NOT NULL,
-        produtos JSONB NOT NULL
-      );
-    `);
-
-    console.log("🟢 Conectado ao Supabase (PostgreSQL) e tabelas prontas!");
-    
-    // Carrega o cardápio do banco após inicializar
-    dadosCardapio = await carregarCardapioDoBanco();
-
-  } catch (err) {
-    console.error("🔴 Erro ao inicializar o banco de dados no Supabase:", err);
-    dadosCardapio = carregarCardapio();
-  }
-}
-initDb();
-
-// Caminhos dos arquivos de dados persistentes
+// Caminhos dos arquivos de dados persistentes (fallback local)
 const DATA_FILE = path.join(__dirname, 'cardapio.json');
 const PEDIDOS_FILE = path.join(__dirname, 'pedidos.json');
 const CONFIG_FILE = path.join(__dirname, 'config.json');
@@ -98,6 +52,180 @@ function salvarConfig() {
 }
 
 let configLoja = carregarConfig();
+
+// Normaliza a lista de produtos garantindo que sempre seja 'produtos'
+function normalizarCardapio(cardapio) {
+  if (!Array.isArray(cardapio)) return [];
+  return cardapio.map(cat => {
+    const lista = cat.produtos || cat.itens || [];
+    return {
+      categoria: cat.categoria || "Geral",
+      produtos: lista.map(p => ({
+        ...p,
+        ativo: p.ativo !== undefined ? p.ativo : (p.disponivel !== undefined ? p.disponivel : true),
+        disponivel: p.disponivel !== undefined ? p.disponivel : (p.ativo !== undefined ? p.ativo : true)
+      }))
+    };
+  });
+}
+
+function cardapioPadraoLocal() {
+  return [
+    {
+      categoria: "Lanches",
+      produtos: [
+        { id: 1, nome: "Hambúrguer 150g", descricao: "Carne artesanal grelhada na hora.", preco: 12.00, ativo: true, disponivel: true },
+        { id: 2, nome: "Bacon Crocante", descricao: "Porção de bacon em fatias.", preco: 5.00, ativo: true, disponivel: true }
+      ]
+    },
+    {
+      categoria: "Bebidas",
+      produtos: [
+        { id: 3, nome: "Refrigerante Lata", descricao: "Lata 350ml trincando de gelada.", preco: 6.00, ativo: true, disponivel: true }
+      ]
+    }
+  ];
+}
+
+let dadosCardapio = cardapioPadraoLocal();
+let pedidosAtivos = [];
+let lojaAberta = configLoja.lojaAberta !== undefined ? configLoja.lojaAberta : true;
+
+// Inicializa o Banco de Dados e carrega os dados reais do Supabase
+async function initDb() {
+  if (!process.env.DATABASE_URL) {
+    console.log("⚠️ Variável DATABASE_URL não encontrada no ambiente. Usando arquivos locais.");
+    dadosCardapio = carregarCardapioLocal();
+    pedidosAtivos = carregarPedidosLocal();
+    return;
+  }
+
+  try {
+    // Cria tabela de pedidos se não existir
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pedidos (
+        id BIGINT PRIMARY KEY,
+        cliente VARCHAR(255),
+        whatsapp VARCHAR(50),
+        subtotal NUMERIC(10,2),
+        taxa_entrega NUMERIC(10,2),
+        total NUMERIC(10,2),
+        tipo_entrega VARCHAR(50),
+        endereco TEXT,
+        pagamento VARCHAR(50),
+        troco VARCHAR(50),
+        observacao TEXT,
+        status VARCHAR(50),
+        itens JSONB,
+        data_criacao TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Cria tabela de cardápio se não existir
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cardapio (
+        id SERIAL PRIMARY KEY,
+        categoria VARCHAR(255) NOT NULL,
+        produtos JSONB NOT NULL
+      );
+    `);
+
+    console.log("🟢 Conectado ao Supabase (PostgreSQL) com sucesso!");
+
+    // 1. Carregar Cardápio do Supabase
+    const resCardapio = await pool.query('SELECT categoria, produtos FROM cardapio ORDER BY id ASC');
+    if (resCardapio.rows.length > 0) {
+      const cardapioFormatado = resCardapio.rows.map(row => ({
+        categoria: row.categoria,
+        produtos: row.produtos
+      }));
+      dadosCardapio = normalizarCardapio(cardapioFormatado);
+      console.log("🟢 Cardápio carregado do Supabase!");
+    } else {
+      // Se a tabela estiver vazia, popula com o cardápio padrão local (ou de arquivo) e salva no banco
+      console.log("ℹ️ Tabela de cardápio vazia no Supabase. Populando com dados iniciais...");
+      dadosCardapio = normalizarCardapio(carregarCardapioLocal());
+      await salvarCardapioNoBanco();
+    }
+
+    pedidosAtivos = carregarPedidosLocal();
+
+  } catch (err) {
+    console.error("🔴 Erro ao inicializar o banco de dados no Supabase:", err);
+    dadosCardapio = normalizarCardapio(carregarCardapioLocal());
+    pedidosAtivos = carregarPedidosLocal();
+  }
+}
+
+function carregarCardapioLocal() {
+  if (fs.existsSync(DATA_FILE)) {
+    try {
+      const data = fs.readFileSync(DATA_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao ler cardapio.json:", err);
+    }
+  }
+  return cardapioPadraoLocal();
+}
+
+async function salvarCardapioNoBanco() {
+  if (!process.env.DATABASE_URL) {
+    try {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(dadosCardapio, null, 2), 'utf8');
+    } catch (err) {
+      console.error("Erro ao salvar cardapio.json localmente:", err);
+    }
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM cardapio');
+    
+    for (const cat of dadosCardapio) {
+      await client.query(
+        'INSERT INTO cardapio (categoria, produtos) VALUES ($1, $2)',
+        [cat.categoria, JSON.stringify(cat.produtos || [])]
+      );
+    }
+    
+    await client.query('COMMIT');
+    console.log("💾 Cardápio salvo com sucesso no Supabase!");
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error("Erro ao salvar cardápio no Supabase:", e);
+  } finally {
+    client.release();
+  }
+}
+
+function carregarPedidosLocal() {
+  if (fs.existsSync(PEDIDOS_FILE)) {
+    try {
+      const data = fs.readFileSync(PEDIDOS_FILE, 'utf8');
+      return JSON.parse(data);
+    } catch (err) {
+      console.error("Erro ao ler pedidos.json:", err);
+    }
+  }
+  return [];
+}
+
+function salvarPedidosLocal() {
+  try {
+    fs.writeFileSync(PEDIDOS_FILE, JSON.stringify(pedidosAtivos, null, 2), 'utf8');
+  } catch (err) {
+    console.error("Erro ao salvar pedidos.json:", err);
+  }
+}
+
+// Inicializa a conexão e banco
+initDb();
 
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -146,133 +274,6 @@ function calcularTaxaEntrega(clienteLat, clienteLng, formaPagamento = '') {
     taxaCartaoAplicada: pagamentoCartao
   };
 }
-
-// Normaliza a lista de produtos garantindo que sempre seja 'produtos'
-function normalizarCardapio(cardapio) {
-  if (!Array.isArray(cardapio)) return [];
-  return cardapio.map(cat => {
-    const lista = cat.produtos || cat.itens || [];
-    return {
-      categoria: cat.categoria || "Geral",
-      produtos: lista.map(p => ({
-        ...p,
-        ativo: p.ativo !== undefined ? p.ativo : (p.disponivel !== undefined ? p.disponivel : true),
-        disponivel: p.disponivel !== undefined ? p.disponivel : (p.ativo !== undefined ? p.ativo : true)
-      }))
-    };
-  });
-}
-
-function carregarCardapio() {
-  if (fs.existsSync(DATA_FILE)) {
-    try {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return normalizarCardapio(parsed);
-      }
-    } catch (err) {
-      console.error("Erro ao ler cardapio.json, usando padrão:", err);
-    }
-  }
-  return [
-    {
-      categoria: "Lanches",
-      produtos: [
-        { id: 1, nome: "Hambúrguer 150g", descricao: "Carne artesanal grelhada na hora.", preco: 12.00, ativo: true, disponivel: true },
-        { id: 2, nome: "Bacon Crocante", descricao: "Porção de bacon em fatias.", preco: 5.00, ativo: true, disponivel: true }
-      ]
-    },
-    {
-      categoria: "Bebidas",
-      produtos: [
-        { id: 3, nome: "Refrigerante Lata", descricao: "Lata 350ml trincando de gelada.", preco: 6.00, ativo: true, disponivel: true }
-      ]
-    }
-  ];
-}
-
-// Função assíncrona para carregar o cardápio do Supabase
-async function carregarCardapioDoBanco() {
-  if (!process.env.DATABASE_URL) {
-    return carregarCardapio();
-  }
-
-  try {
-    const res = await pool.query('SELECT categoria, produtos FROM cardapio ORDER BY id ASC');
-    if (res.rows.length > 0) {
-      const cardapioFormatado = res.rows.map(row => ({
-        categoria: row.categoria,
-        produtos: row.produtos
-      }));
-      return normalizarCardapio(cardapioFormatado);
-    }
-  } catch (err) {
-    console.error("Erro ao carregar cardápio do Supabase:", err);
-  }
-
-  return carregarCardapio();
-}
-
-// Função assíncrona para salvar todo o cardápio no Supabase
-async function salvarCardapioNoBanco() {
-  if (!process.env.DATABASE_URL) {
-    try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(dadosCardapio, null, 2), 'utf8');
-    } catch (err) {
-      console.error("Erro ao salvar cardapio.json:", err);
-    }
-    return;
-  }
-
-  try {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('DELETE FROM cardapio');
-      
-      for (const cat of dadosCardapio) {
-        await client.query(
-          'INSERT INTO cardapio (categoria, produtos) VALUES ($1, $2)',
-          [cat.categoria, JSON.stringify(cat.produtos || [])]
-        );
-      }
-      
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error("Erro ao salvar cardápio no Supabase:", err);
-  }
-}
-
-function carregarPedidos() {
-  if (fs.existsSync(PEDIDOS_FILE)) {
-    try {
-      const data = fs.readFileSync(PEDIDOS_FILE, 'utf8');
-      return JSON.parse(data);
-    } catch (err) {
-      console.error("Erro ao ler pedidos.json, usando array vazio:", err);
-    }
-  }
-  return [];
-}
-
-function salvarPedidos() {
-  try {
-    fs.writeFileSync(PEDIDOS_FILE, JSON.stringify(pedidosAtivos, null, 2), 'utf8');
-  } catch (err) {
-    console.error("Erro ao salvar pedidos.json:", err);
-  }
-}
-
-let dadosCardapio = [];
-let pedidosAtivos = carregarPedidos();
-let lojaAberta = configLoja.lojaAberta !== undefined ? configLoja.lojaAberta : true;
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -420,7 +421,7 @@ io.on('connection', (socket) => {
     if (!pedido.id) pedido.id = Date.now();
     pedido.status = 'pendente';
     pedidosAtivos.unshift(pedido);
-    salvarPedidos();
+    salvarPedidosLocal();
 
     // Salva o pedido no banco de dados Supabase para os relatórios
     if (process.env.DATABASE_URL) {
@@ -457,7 +458,7 @@ io.on('connection', (socket) => {
     const pedido = pedidosAtivos.find(p => p.id === id);
     if (pedido) {
       pedido.status = status;
-      salvarPedidos();
+      salvarPedidosLocal();
 
       if (status === 'saiu_entrega') {
         const mensagemWhats = `Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} acabou de sair para entrega!`;
@@ -471,7 +472,6 @@ io.on('connection', (socket) => {
       io.emit('atualizarListaPedidos', pedidosAtivos);
     }
 
-    // Atualiza o status no banco de dados do Supabase
     if (process.env.DATABASE_URL) {
       try {
         await pool.query('UPDATE pedidos SET status = $1 WHERE id = $2', [status, id]);
@@ -483,11 +483,10 @@ io.on('connection', (socket) => {
 
   socket.on('removerPedido', (idPedido) => {
     pedidosAtivos = pedidosAtivos.filter(p => p.id !== idPedido);
-    salvarPedidos();
+    salvarPedidosLocal();
     io.emit('atualizarListaPedidos', pedidosAtivos);
   });
 
-  // EXCLUIR VENDA DO HISTÓRICO FINANCEIRO (SUPABASE)
   socket.on('excluirVendaHistorico', async (id) => {
     if (!process.env.DATABASE_URL) return;
 
@@ -498,18 +497,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  // IMPRESSÃO INDIVIDUAL DE VENDA DO HISTÓRICO (SUPABASE)
   socket.on('imprimirVendaHistorico', async (id) => {
     if (!process.env.DATABASE_URL) return;
 
     try {
-      // Modificado para aceitar tanto o ID inteiro exato quanto uma busca por final de ID caso venha cortado
       let resPedido = await pool.query(`
         SELECT id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
         FROM pedidos WHERE id = $1
       `, [id]);
 
-      // Se não encontrar diretamente pelo ID exato, tenta buscar pelo final do ID (caso o frontend tenha enviado só os 4 dígitos)
       if (resPedido.rows.length === 0 && String(id).length <= 6) {
         resPedido = await pool.query(`
           SELECT id, cliente, whatsapp, subtotal, taxa_entrega, total, tipo_entrega, endereco, pagamento, troco, observacao, status, itens, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
@@ -530,7 +526,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // BUSCAR RELATÓRIOS FINANCEIROS DO SUPABASE
   socket.on('obterRelatorioFinanceiro', async (filtro) => {
     if (!process.env.DATABASE_URL) return;
 
@@ -545,7 +540,6 @@ io.on('connection', (socket) => {
         queryCondicao += " AND data_criacao >= DATE_TRUNC('month', CURRENT_DATE)";
       }
 
-      // 1. Resumo financeiro total
       const resTotais = await pool.query(`
         SELECT 
           COUNT(*) as qtd_pedidos,
@@ -555,7 +549,6 @@ io.on('connection', (socket) => {
         FROM pedidos ${queryCondicao}
       `);
 
-      // 2. Busca lista de pedidos do período incluindo o ID COMPLETO REAL para o botão de imprimir funcionar perfeitamente
       const resLista = await pool.query(`
         SELECT id, cliente, total, tipo_entrega, pagamento, status, TO_CHAR(data_criacao, 'DD/MM/YYYY HH24:MI') as data_formatada
         FROM pedidos ${queryCondicao}
