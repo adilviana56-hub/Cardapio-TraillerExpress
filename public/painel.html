@@ -3,350 +3,433 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel Administrativo - Trailer Express</title>
+  <title>Painel do Estabelecimento - Trailer Express</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #f4f6f9; padding: 20px; color: #333; }
-
-    header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    header h1 { font-size: 20px; color: #cc0000; }
-
-    .status-loja-box { display: flex; align-items: center; gap: 10px; }
-    .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
-    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-    input:checked + .slider { background-color: #28a745; }
-    input:checked + .slider:before { transform: translateX(26px); }
-
-    .nav-abas { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-    .btn-aba { padding: 10px 20px; border: none; background: #e0e0e0; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 14px; }
-    .btn-aba.ativo { background: #cc0000; color: white; }
-
-    .painel-secao { display: none; }
-    .painel-secao.ativo { display: block; }
-
-    /* PEDIDOS */
-    .pedido-card { background: #fff; border-left: 5px solid #ffc107; padding: 15px; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .pedido-card.aceito { border-left-color: #17a2b8; }
-    .pedido-card.entrega { border-left-color: #007bff; }
-    .pedido-card.concluido { border-left-color: #28a745; opacity: 0.8; }
-
-    .pedido-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .pedido-header h3 { font-size: 16px; color: #333; }
-    .status-badge { font-size: 12px; font-weight: bold; padding: 3px 8px; border-radius: 4px; }
-    .badge-pendente { background: #fff3cd; color: #856404; }
-    .badge-aceito { background: #d1ecf1; color: #0c5460; }
-    .badge-entrega { background: #cce5ff; color: #004085; }
-    .badge-concluido { background: #d4edda; color: #155724; }
-
-    .pedido-detalhes { font-size: 13px; color: #555; margin-bottom: 12px; line-height: 1.4; }
+    body { background: #f4f6f8; padding: 15px; max-width: 900px; margin: 0 auto; color: #333; }
     
-    .pedido-botoes { display: flex; gap: 8px; flex-wrap: wrap; }
-    .btn-acao { padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; color: white; }
-    .btn-imprimir { background: #6c757d; }
-    .btn-aceitar { background: #17a2b8; }
-    .btn-rota { background: #007bff; }
-    .btn-concluir { background: #28a745; }
+    header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    header h1 { font-size: 20px; color: #cc0000; }
+    
+    .btn-status { padding: 10px 18px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; color: white; }
+    .btn-aberto { background: #28a745; }
+    .btn-fechado { background: #dc3545; }
 
-    /* CARDÁPIO */
-    .cardapio-adm-box { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .cat-box { margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
-    .cat-box h3 { font-size: 16px; color: #cc0000; margin-bottom: 10px; }
-    .produto-adm-linha { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 14px; }
-    .switch-prod { position: relative; display: inline-block; width: 40px; height: 20px; }
-    .switch-prod input { opacity: 0; width: 0; height: 0; }
-    .slider-prod { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 20px; }
-    .slider-prod:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
-    input:checked + .slider-prod { background-color: #28a745; }
-    input:checked + .slider-prod:before { transform: translateX(20px); }
+    .secao { background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .secao h2 { font-size: 17px; margin-bottom: 12px; border-bottom: 2px solid #eee; padding-bottom: 6px; color: #444; }
 
-    /* RELATÓRIO */
-    .relatorio-box { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .metrica-card { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #cc0000; }
-    .metrica-card h4 { font-size: 13px; color: #666; margin-bottom: 5px; }
-    .metrica-card p { font-size: 20px; font-weight: bold; color: #333; }
+    /* Formulários */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 15px; }
+    .form-grid input, .form-grid select { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 100%; }
+    
+    .btn { background: #007bff; color: white; border: none; padding: 9px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .btn:hover { opacity: 0.9; }
+    .btn-sucesso { background: #28a745; }
+    .btn-danger { background: #dc3545; }
+    .btn-warning { background: #ffc107; color: #212529; }
+    .btn-info { background: #17a2b8; color: white; }
+    .btn-imprimir { background: #6c757d; color: white; }
+
+    /* Cards de Categorias e Produtos */
+    .cat-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 15px; background: #fafafa; }
+    .cat-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
+    .cat-header h3 { font-size: 16px; color: #cc0000; }
+
+    .item-produto { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+    .item-info { flex: 1; min-width: 200px; }
+    .item-info strong { font-size: 15px; }
+    .item-info p { font-size: 12px; color: #666; margin-top: 2px; }
+    .item-acoes { display: flex; align-items: center; gap: 6px; }
+
+    /* Cards de Pedidos */
+    .pedido-card { border-left: 5px solid #007bff; background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .pedido-card.pendente { border-color: #ffc107; }
+    .pedido-card.em_preparo { border-color: #17a2b8; }
+    .pedido-card.saiu_entrega { border-color: #28a745; }
+    .pedido-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 6px; font-weight: bold; margin-bottom: 8px; }
+
+    /* ESTILO PARA IMPRESSÃO TÉRMICA DE 80MM OU SALVAR EM PDF */
+    @media print {
+      body * { visibility: hidden; }
+      #area-impressao-termica, #area-impressao-termica * { visibility: visible; }
+      #area-impressao-termica {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 78mm;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        color: #000;
+        background: #fff;
+        padding: 4mm;
+      }
+      #area-impressao-termica h2 { text-align: center; font-size: 16px; margin-bottom: 4px; text-transform: uppercase; }
+      #area-impressao-termica p { margin-bottom: 3px; word-break: break-word; }
+      #area-impressao-termica .divisoria { border-top: 1px dashed #000; margin: 6px 0; }
+      #area-impressao-termica .item-cupom { margin-bottom: 4px; }
+    }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Painel Administrativo - Trailer Express</h1>
-    <div class="status-loja-box">
-      <span id="txt-status-loja" style="font-weight: bold; font-size: 14px;">Loja Aberta</span>
-      <label class="switch">
-        <input type="checkbox" id="input-toggle-loja" checked onchange="alternarLoja()">
-        <span class="slider"></span>
-      </label>
-    </div>
+    <h1>⚙️ Painel de Controle - Trailer Express</h1>
+    <button id="btn-toggle-loja" class="btn-status btn-aberto" onclick="alternarStatusLoja()">
+      Loja Aberta
+    </button>
   </header>
 
-  <div class="nav-abas">
-    <button class="btn-aba ativo" onclick="mudarAba('pedidos', this)">🚨 Pedidos Recebidos</button>
-    <button class="btn-aba" onclick="mudarAba('cardapio', this)">🍔 Gerenciar Cardápio</button>
-    <button class="btn-aba" onclick="mudarAba('relatorio', this)">📊 Relatório Financeiro & Métricas</button>
-  </div>
-
-  <!-- ABA PEDIDOS -->
-  <div id="aba-pedidos" class="painel-secao ativo">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <h2>Pedidos em Tempo Real</h2>
-      <button onclick="limparHistorico()" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">🗑️ Limpar Pedidos Concluídos</button>
-    </div>
-    <div id="lista-pedidos-adm">
-      <p style="color: #888;">Nenhum pedido no momento.</p>
+  <!-- GERENCIAR CATEGORIAS -->
+  <div class="secao">
+    <h2>📁 Gerenciar Categorias</h2>
+    <div style="display: flex; gap: 10px;">
+      <input type="text" id="nova-categoria-nome" placeholder="Nome da Categoria (Ex: Lanche, Bebidas)" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+      <button class="btn btn-sucesso" onclick="adicionarCategoria()">+ Adicionar Categoria</button>
     </div>
   </div>
 
-  <!-- ABA CARDÁPIO -->
-  <div id="aba-cardapio" class="painel-secao">
-    <div class="cardapio-adm-box">
-      <h2>Controle de Disponibilidade de Itens</h2>
-      <p style="font-size: 12px; color: #666; margin-bottom: 15px;">Ative ou desative itens instantaneamente para os clientes no cardápio.</p>
-      <div id="container-cardapio-adm">
-        <p style="color: #888;">Carregando cardápio...</p>
-      </div>
+  <!-- CADASTRAR PRODUTO -->
+  <div class="secao">
+    <h2>➕ Cadastrar Novo Produto</h2>
+    <div class="form-grid">
+      <select id="prod-categoria">
+        <option value="">Selecione a Categoria...</option>
+      </select>
+      <input type="text" id="prod-nome" placeholder="Nome do Produto">
+      <input type="number" step="0.50" id="prod-preco" placeholder="Preço (R$)">
+      <input type="text" id="prod-descricao" placeholder="Descrição (Opcional)">
+    </div>
+    <button class="btn btn-sucesso" onclick="adicionarProduto()">Cadastrar Produto</button>
+  </div>
+
+  <!-- LISTA E EDIÇÃO DE CARDÁPIO -->
+  <div class="secao">
+    <h2>📋 Cardápio Atual</h2>
+    <div id="container-cardapio"></div>
+  </div>
+
+  <!-- PEDIDOS RECEBIDOS -->
+  <div class="secao">
+    <h2>🔔 Pedidos Recebidos</h2>
+    <div id="container-pedidos">
+      <p style="color: #777;">Nenhum pedido ativo no momento.</p>
     </div>
   </div>
 
-  <!-- ABA RELATÓRIO -->
-  <div id="aba-relatorio" class="painel-secao">
-    <div class="relatorio-box">
-      <h2>Relatório Financeiro & Métricas</h2>
-      <div style="margin-top: 15px;">
-        <div class="metrica-card">
-          <h4>Total de Vendas Hoje</h4>
-          <p id="rel-total-vendas">R$ 0,00</p>
-        </div>
-        <div class="metrica-card">
-          <h4>Quantidade de Pedidos Realizados</h4>
-          <p id="rel-qtd-pedidos">0</p>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- ÁREA INVISÍVEL PARA IMPRESSÃO TÉRMICA 80MM / PDF -->
+  <div id="area-impressao-termica" style="display: none;"></div>
 
   <script>
     const socket = io();
-    let pedidosGlobal = [];
-    let cardapioGlobal = [];
+    let lojaAberta = true;
+    let cardapioAtual = [];
+    let pedidosAtuais = [];
 
-    function mudarAba(abaId, elementoBtn) {
-      document.querySelectorAll('.painel-secao').forEach(s => s.classList.remove('ativo'));
-      document.querySelectorAll('.btn-aba').forEach(b => b.classList.remove('ativo'));
-
-      document.getElementById('aba-' + abaId).classList.add('ativo');
-      elementoBtn.classList.add('ativo');
-
-      if (abaId === 'relatorio') {
-        atualizarRelatorio();
-      }
+    // Helper para verificar disponibilidade do produto de forma segura
+    function produtoEstaAtivo(p) {
+      if (p.ativo === false || p.disponivel === false) return false;
+      return true;
     }
 
+    // OUVIR ESTADO EM TEMPO REAL
     socket.on('atualizarEstado', (data) => {
-      document.getElementById('input-toggle-loja').checked = data.lojaAberta;
-      document.getElementById('txt-status-loja').innerText = data.lojaAberta ? "Loja Aberta" : "Loja Fechada";
-      cardapioGlobal = data.cardapio || [];
-      renderizarCardapioAdm();
+      lojaAberta = data.lojaAberta;
+      cardapioAtual = data.cardapio || [];
+      atualizarBotaoLoja();
+      renderizarCardapio();
+      atualizarSelectCategorias();
     });
 
-    socket.on('carregarHistoricoPedidos', (pedidos) => {
-      pedidosGlobal = pedidos || [];
-      renderizarPedidos();
-      atualizarRelatorio();
+    socket.on('carregarPedidos', (pedidos) => {
+      pedidosAtuais = pedidos || [];
+      renderizarPedidos(pedidosAtuais);
     });
 
-    socket.on('novoPedidoRecebido', (pedido) => {
-      pedidosGlobal.unshift(pedido);
-      renderizarPedidos();
-      atualizarRelatorio();
-      
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      tocarAlarmeSonoro();
+    socket.on('atualizarListaPedidos', (pedidos) => {
+      pedidosAtuais = pedidos || [];
+      renderizarPedidos(pedidosAtuais);
     });
 
-    function tocarAlarmeSonoro() {
+    // RECEBER NOVO PEDIDO EM TEMPO REAL
+    socket.on('novoPedido', (pedido) => {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = 587.33;
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.6);
-      } catch (e) {
-        console.log("Áudio bloqueado pelo navegador.");
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+        audio.play().catch(() => {});
+      } catch (e) {}
+
+      if (pedido && pedido.id) {
+        pedidosAtuais = pedidosAtuais.filter(p => p.id !== pedido.id);
+        pedidosAtuais.unshift(pedido);
+        renderizarPedidos(pedidosAtuais);
+      }
+    });
+
+    function alternarStatusLoja() {
+      socket.emit('mudarStatusLoja', !lojaAberta);
+    }
+
+    function atualizarBotaoLoja() {
+      const btn = document.getElementById('btn-toggle-loja');
+      if (lojaAberta) {
+        btn.innerText = "● LOJA ABERTA";
+        btn.className = "btn-status btn-aberto";
+      } else {
+        btn.innerText = "● LOJA FECHADA";
+        btn.className = "btn-status btn-fechado";
       }
     }
 
-    function alternarLoja() {
-      const aberto = document.getElementById('input-toggle-loja').checked;
-      socket.emit('toggleLoja', aberto);
+    function atualizarSelectCategorias() {
+      const select = document.getElementById('prod-categoria');
+      select.innerHTML = '<option value="">Selecione a Categoria...</option>';
+      cardapioAtual.forEach(c => {
+        select.innerHTML += `<option value="${c.categoria}">${c.categoria}</option>`;
+      });
     }
 
-    function mudarStatusPedido(idPedido, novoStatus) {
-      socket.emit('atualizarStatusPedido', { id: idPedido, status: novoStatus });
+    function renderizarCardapio() {
+      const container = document.getElementById('container-cardapio');
+      container.innerHTML = '';
+
+      if (!cardapioAtual || cardapioAtual.length === 0) {
+        container.innerHTML = '<p style="color:#888;">Nenhuma categoria cadastrada.</p>';
+        return;
+      }
+
+      cardapioAtual.forEach(cat => {
+        const listaProdutos = cat.produtos || cat.itens || [];
+
+        let html = `
+          <div class="cat-box">
+            <div class="cat-header">
+              <h3>${cat.categoria}</h3>
+              <div>
+                <button class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;" onclick="editarCategoria('${(cat.categoria || '').replace(/'/g, "\\'")}')">✏️ Editar Nome</button>
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirCategoria('${(cat.categoria || '').replace(/'/g, "\\'")}')">🗑️ Excluir</button>
+              </div>
+            </div>
+        `;
+
+        if (listaProdutos.length === 0) {
+          html += `<p style="font-size: 13px; color: #999;">Nenhum produto nesta categoria.</p>`;
+        } else {
+          listaProdutos.forEach(p => {
+            const ativo = produtoEstaAtivo(p);
+            const nomeEscapado = (p.nome || '').replace(/'/g, "\\'");
+            const descEscapada = (p.descricao || '').replace(/'/g, "\\'");
+            const preco = Number(p.preco || 0);
+
+            html += `
+              <div class="item-produto">
+                <div class="item-info">
+                  <strong>${p.nome}</strong> - <span style="color:#28a745; font-weight:bold;">R$ ${preco.toFixed(2).replace('.', ',')}</span>
+                  <p>${p.descricao || 'Sem descrição'}</p>
+                </div>
+                <div class="item-acoes">
+                  <button class="btn btn-warning" style="padding: 5px 8px; font-size: 12px;" onclick="editarProduto(${p.id}, '${nomeEscapado}', ${preco}, '${descEscapada}')">✏️ Editar</button>
+                  <button class="btn ${ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id}, ${!ativo})">
+                    ${ativo ? 'Disponível' : 'Esgotado'}
+                  </button>
+                  <button class="btn btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="excluirProduto(${p.id})">🗑️</button>
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        html += `</div>`;
+        container.innerHTML += html;
+      });
     }
 
-    function limparHistorico() {
-      if (confirm("Deseja limpar todos os pedidos concluídos da tela?")) {
-        pedidosGlobal = pedidosGlobal.filter(p => p.status !== 'concluido');
-        renderizarPedidos();
+    // AÇÕES DE CATEGORIAS
+    function adicionarCategoria() {
+      const input = document.getElementById('nova-categoria-nome');
+      if (input.value.trim()) {
+        socket.emit('adicionarCategoria', input.value.trim());
+        input.value = '';
       }
     }
 
-    function renderizarPedidos() {
-      const container = document.getElementById('lista-pedidos-adm');
-      if (pedidosGlobal.length === 0) {
-        container.innerHTML = '<p style="color: #888;">Nenhum pedido no momento.</p>';
+    function editarCategoria(nomeAntigo) {
+      const novoNome = prompt("Digite o novo nome para a categoria:", nomeAntigo);
+      if (novoNome && novoNome.trim()) {
+        socket.emit('editarCategoria', { nomeAntigo, novoNome: novoNome.trim() });
+      }
+    }
+
+    function excluirCategoria(nomeCategoria) {
+      if (confirm(`Excluir a categoria "${nomeCategoria}" e todos os seus produtos?`)) {
+        socket.emit('excluirCategoria', nomeCategoria);
+      }
+    }
+
+    // AÇÕES DE PRODUTOS
+    function adicionarProduto() {
+      const categoria = document.getElementById('prod-categoria').value;
+      const nome = document.getElementById('prod-nome').value.trim();
+      const preco = document.getElementById('prod-preco').value;
+      const descricao = document.getElementById('prod-descricao').value.trim();
+
+      if (!categoria || !nome || !preco) {
+        return alert('Preencha a Categoria, Nome e Preço!');
+      }
+
+      socket.emit('adicionarProduto', { categoria, nome, preco: parseFloat(preco), descricao, ativo: true, disponivel: true });
+
+      document.getElementById('prod-nome').value = '';
+      document.getElementById('prod-preco').value = '';
+      document.getElementById('prod-descricao').value = '';
+    }
+
+    function editarProduto(idProduto, nomeAtual, precoAtual, descAtual) {
+      const novoNome = prompt("Nome do Produto:", nomeAtual);
+      if (novoNome === null) return;
+
+      const novoPrecoStr = prompt("Preço (R$):", precoAtual);
+      if (novoPrecoStr === null) return;
+      const novoPreco = parseFloat(novoPrecoStr.replace(',', '.'));
+
+      const novaDesc = prompt("Descrição:", descAtual);
+      if (novaDesc === null) return;
+
+      if (!novoNome.trim() || isNaN(novoPreco)) {
+        return alert("Nome ou Preço inválidos!");
+      }
+
+      socket.emit('editarProduto', { idProduto, nome: novoNome, preco: novoPreco, descricao: novaDesc });
+    }
+
+    function toggleProduto(idProduto, statusNovo) {
+      socket.emit('mudarStatusProduto', { idProduto, disponivel: statusNovo, ativo: statusNovo });
+    }
+
+    function excluirProduto(idProduto) {
+      if (confirm("Deseja realmente excluir este produto?")) {
+        socket.emit('excluirProduto', idProduto);
+      }
+    }
+
+    // RENDERIZAR PEDIDOS
+    function renderizarPedidos(pedidos) {
+      const container = document.getElementById('container-pedidos');
+      if (!pedidos || pedidos.length === 0) {
+        container.innerHTML = '<p style="color: #777;">Nenhum pedido ativo no momento.</p>';
         return;
       }
 
       container.innerHTML = '';
-      pedidosGlobal.forEach(p => {
-        let classeCard = '';
-        let badgeClasse = 'badge-pendente';
-        let textoStatus = 'PENDENTE';
-
-        if (p.status === 'aceito') {
-          classeCard = 'aceito';
-          badgeClasse = 'badge-aceito';
-          textoStatus = 'EM PREPARO';
-        } else if (p.status === 'entrega') {
-          classeCard = 'entrega';
-          badgeClasse = 'badge-entrega';
-          textoStatus = 'SAIU PARA ENTREGA';
-        } else if (p.status === 'concluido') {
-          classeCard = 'concluido';
-          badgeClasse = 'badge-concluido';
-          textoStatus = 'CONCLUÍDO';
-        }
-
-        let itensHtml = p.itens.map(i => `• ${i.quantidade}x ${i.nome}`).join('<br>');
+      pedidos.forEach(p => {
+        let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
+        const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
 
         container.innerHTML += `
-          <div class="pedido-card ${classeCard}">
+          <div class="pedido-card ${p.status || 'pendente'}">
             <div class="pedido-header">
-              <h3>Pedido #${p.id.toString().slice(-4)} - ${p.cliente} (${p.data})</h3>
-              <span class="status-badge ${badgeClasse}">${textoStatus}</span>
+              <span>Pedido #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
+              <span>Status: <strong>${statusTexto}</strong></span>
             </div>
-            <div class="pedido-detalhes">
-              <strong>Itens:</strong><br>${itensHtml}<br>
-              <strong>Total:</strong> R$ ${p.total.toFixed(2).replace('.', ',')} | <strong>Pagamento:</strong> ${p.pagamento.toUpperCase()} ${p.troco ? '(Troco para R$ ' + p.troco + ')' : ''}<br>
-              <strong>Entrega:</strong> ${p.tipoEntrega === 'entrega' ? p.endereco : 'Retirada no Balcão'}<br>
-              <strong>WhatsApp:</strong> ${p.whatsapp}
-              ${p.observacao ? '<br><strong>Obs:</strong> ' + p.observacao : ''}
-            </div>
-            <div class="pedido-botoes">
-              <button class="btn-acao btn-imprimir" onclick="imprimirPedido('${p.id}')">🖨️ Imprimir 80mm / PDF</button>
-              <button class="btn-acao btn-aceitar" onclick="mudarStatusPedido(${p.id}, 'aceito')">🛵 Aceitar / Em Preparo</button>
-              <button class="btn-acao btn-rota" onclick="mudarStatusPedido(${p.id}, 'entrega')">🚚 Saiu para Entrega</button>
-              <button class="btn-acao btn-concluir" onclick="mudarStatusPedido(${p.id}, 'concluido')">✅ Concluir</button>
+            <p><strong>Itens:</strong><br>${itensTxt}</p>
+            <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')} | <strong>Pagamento:</strong> ${(p.pagamento || '').toUpperCase()}</p>
+            <p><strong>Entrega:</strong> ${p.endereco || 'Retirada / Balcão'}</p>
+            ${p.whatsapp || p.telefone ? `<p><strong>WhatsApp:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
+            ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
+            
+            <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-imprimir" onclick="imprimirPedido(${p.id})">🖨️ Imprimir 80mm / PDF</button>
+              
+              ${p.status === 'pendente' ? `
+                <button class="btn btn-info" onclick="mudarStatusPedido(${p.id}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
+              ` : ''}
+
+              ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
+                <button class="btn btn-warning" onclick="notificarSaiuEntrega(${p.id})">🛵 Saiu para Entrega (Enviar Whats)</button>
+              ` : ''}
+
+              <button class="btn btn-danger" onclick="removerPedido(${p.id})">✅ Concluir / Apagar</button>
             </div>
           </div>
         `;
       });
     }
 
-    function renderizarCardapioAdm() {
-      const container = document.getElementById('container-cardapio-adm');
-      if (!Array.isArray(cardapioGlobal) || cardapioGlobal.length === 0) {
-        container.innerHTML = '<p style="color: #888;">Nenhum item encontrado.</p>';
-        return;
+    function mudarStatusPedido(id, status) {
+      const pedido = pedidosAtuais.find(p => p.id === id);
+      if (pedido) {
+        pedido.status = status;
+        renderizarPedidos(pedidosAtuais);
       }
+      socket.emit('alterarStatusPedido', { id, status });
+    }
 
-      container.innerHTML = '';
-      cardapioGlobal.forEach((cat, indexCat) => {
-        let htmlCat = `<div class="cat-box"><h3>${cat.categoria}</h3>`;
+    function notificarSaiuEntrega(id) {
+      const pedido = pedidosAtuais.find(p => p.id === id);
+      if (!pedido) return;
+
+      pedido.status = 'saiu_entrega';
+      renderizarPedidos(pedidosAtuais);
+      socket.emit('alterarStatusPedido', { id, status: 'saiu_entrega' });
+
+      const numOriginal = pedido.whatsapp || pedido.telefone || '';
+      
+      if (numOriginal) {
+        const numLimpo = numOriginal.replace(/\D/g, '');
+        const numFormatado = numLimpo.startsWith('55') ? numLimpo : `55${numLimpo}`;
+        const mensagem = encodeURIComponent(`Olá ${pedido.cliente || ''}! 🛵 Seu pedido #${pedido.id.toString().slice(-4)} do Trailer Express acabou de sair para entrega!`);
         
-        if (cat.produtos) {
-          cat.produtos.forEach((prod, indexProd) => {
-            const ativo = (prod.ativo !== false && prod.disponivel !== false);
-            htmlCat += `
-              <div class="produto-adm-linha">
-                <span>${prod.nome} - R$ ${Number(prod.preco).toFixed(2).replace('.', ',')}</span>
-                <label class="switch-prod">
-                  <input type="checkbox" ${ativo ? 'checked' : ''} onchange="toggleProduto(${indexCat}, ${indexProd}, this.checked)">
-                  <span class="slider-prod"></span>
-                </label>
-              </div>
-            `;
-          });
-        }
-        htmlCat += `</div>`;
-        container.innerHTML += htmlCat;
-      });
-    }
-
-    function toggleProduto(indexCat, indexProd, status) {
-      if (cardapioGlobal[indexCat] && cardapioGlobal[indexCat].produtos[indexProd]) {
-        cardapioGlobal[indexCat].produtos[indexProd].ativo = status;
-        cardapioGlobal[indexCat].produtos[indexProd].disponivel = status;
-        socket.emit('atualizarCardapio', cardapioGlobal);
+        window.open(`https://api.whatsapp.com/send?phone=${numFormatado}&text=${mensagem}`, '_blank');
+      } else {
+        alert('Este pedido não possui um número de WhatsApp cadastrado!');
       }
     }
 
-    function atualizarRelatorio() {
-      let totalVendas = 0;
-      let qtdPedidos = pedidosGlobal.length;
-
-      pedidosGlobal.forEach(p => {
-        if (p.status !== 'cancelado') {
-          totalVendas += p.total;
-        }
-      });
-
-      document.getElementById('rel-total-vendas').innerText = `R$ ${totalVendas.toFixed(2).replace('.', ',')}`;
-      document.getElementById('rel-qtd-pedidos').innerText = qtdPedidos;
+    function removerPedido(id) {
+      if (confirm("Deseja realmente finalizar e remover este pedido do painel?")) {
+        pedidosAtuais = pedidosAtuais.filter(p => p.id !== id);
+        renderizarPedidos(pedidosAtuais);
+        socket.emit('removerPedido', id);
+      }
     }
 
     function imprimirPedido(id) {
-      const p = pedidosGlobal.find(item => item.id.toString() === id.toString());
-      if (!p) return alert('Pedido não encontrado.');
+      const p = pedidosAtuais.find(item => item.id === id);
+      if (!p) return alert('Pedido não encontrado!');
 
-      let janelaImpressao = window.open('', '_blank', 'width=400,height=600');
-      let itensHtmlPrint = p.itens.map(i => `<tr><td>${i.quantidade}x ${i.nome}</td></tr>`).join('');
+      const area = document.getElementById('area-impressao-termica');
+      area.style.display = 'block';
 
-      janelaImpressao.document.write(`
-        <html>
-          <head>
-            <title>Imprimir Pedido #${p.id}</title>
-            <style>
-              body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 300px; margin: 0; padding: 10px; color: #000; }
-              h2, h3 { text-align: center; margin: 5px 0; }
-              hr { border-top: 1px dashed #000; }
-              table { width: 100%; border-collapse: collapse; }
-              td { padding: 3px 0; }
-            </style>
-          </head>
-          <body>
-            <h2>TRAILER EXPRESS</h2>
-            <h3>Pedido #${p.id.toString().slice(-4)}</h3>
-            <p><strong>Cliente:</strong> ${p.cliente}<br>
-            <strong>WhatsApp:</strong> ${p.whatsapp}<br>
-            <strong>Data:</strong> ${p.data}</p>
-            <hr>
-            <table>
-              ${itensHtmlPrint}
-            </table>
-            <hr>
-            <p><strong>Tipo:</strong> ${p.tipoEntrega.toUpperCase()}<br>
-            ${p.tipoEntrega === 'entrega' ? '<strong>Endereço:</strong> ' + p.endereco + '<br>' : ''}
-            <strong>Pagamento:</strong> ${p.pagamento.toUpperCase()} ${p.troco ? '(Troco para R$ ' + p.troco + ')' : ''}<br>
-            ${p.observacao ? '<strong>Obs:</strong> ' + p.observacao + '<br>' : ''}</p>
-            <hr>
-            <h3 style="text-align: right;">TOTAL: R$ ${p.total.toFixed(2).replace('.', ',')}</h3>
-            <script>
-              window.onload = function() { window.print(); window.close(); }
-            <\/script>
-          </body>
-        </html>
-      `);
-      janelaImpressao.document.close();
+      let itensFormatados = p.itens ? p.itens.map(i => `
+        <div class="item-cupom">
+          <strong>${i.quantidade}x</strong> ${i.nome}
+        </div>
+      `).join('') : '';
+
+      area.innerHTML = `
+        <h2>TRAILER EXPRESS</h2>
+        <div style="text-align: center; font-size: 10px;">Comprovante de Pedido</div>
+        <div class="divisoria"></div>
+        <p><strong>PEDIDO:</strong> #${p.id ? p.id.toString().slice(-4) : '---'} - ${p.data || ''}</p>
+        <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
+        ${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
+        <p><strong>ENDEREÇO:</strong> ${p.endereco || 'Retirada'}</p>
+        <div class="divisoria"></div>
+        <p><strong>ITENS SOLICITADOS:</strong></p>
+        ${itensFormatados}
+        <div class="divisoria"></div>
+        <p><strong>PAGAMENTO:</strong> ${(p.pagamento || '').toUpperCase()}</p>
+        ${p.troco ? `<p><strong>TROCO PARA:</strong> R$ ${p.troco}</p>` : ''}
+        <p style="font-size: 14px; margin-top: 4px;"><strong>TOTAL: R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></p>
+        ${p.observacao ? `<div class="divisoria"></div><p><strong>OBS:</strong> ${p.observacao}</p>` : ''}
+        <div class="divisoria"></div>
+        <div style="text-align: center; font-size: 10px; margin-top: 8px;">Obrigado pela preferência! 🍔</div>
+      `;
+
+      window.print();
+
+      setTimeout(() => {
+        area.style.display = 'none';
+      }, 1000);
     }
   </script>
 </body>
