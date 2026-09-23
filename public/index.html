@@ -137,10 +137,10 @@
       <span id="numero-lanche-txt" style="font-size: 12px; background: #eee; padding: 3px 8px; border-radius: 10px;">Lanche nº 1</span>
     </div>
 
-    <!-- CAMPO PARA O CLIENTE NOMEAR O LANCHE -->
-    <div class="campo" style="margin-bottom: 12px;">
-      <label>Nome ou Apelido deste Lanche (Opcional)</label>
-      <input type="text" id="nome-personalizado-lanche" placeholder="Ex: X-Salada do Pai, Lanche sem cebola...">
+    <!-- CAMPO PARA O CLIENTE NOMEAR O LANCHE (COM DESTAQUE E OBRIGATÓRIO) -->
+    <div class="campo" style="background: #fff5f5; border: 2px solid #cc0000; padding: 10px; border-radius: 6px; margin-bottom: 12px;">
+      <label style="color: #cc0000; font-size: 14px;">⚠️ NOME OU APELIDO DESTE LANCHE (OBRIGATÓRIO):</label>
+      <input type="text" id="nome-personalizado-lanche" required placeholder="Ex: X-Salada do Pai, Lanche sem cebola..." style="border: 1px solid #cc0000; background: #fff; margin-top: 5px;">
     </div>
 
     <!-- PÃO BASE FIXO -->
@@ -425,6 +425,17 @@
     function salvarLancheAtualNoCarrinho() {
       if (!lojaAberta) return alert('A loja está fechada!');
 
+      // VALIDAÇÃO OBRIGATÓRIA DO NOME DO LANCHE
+      const inputNomeLanche = document.getElementById('nome-personalizado-lanche');
+      const nomePersonalizadoInput = inputNomeLanche.value.trim();
+
+      if (!nomePersonalizadoInput) {
+        alert('⚠️ Por favor, digite o Nome ou Apelido deste lanche antes de adicionar ao pedido!');
+        inputNomeLanche.focus();
+        inputNomeLanche.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
       let subtotal = PAO_BASE.preco;
       let listaItens = [{ nome: PAO_BASE.nome, qtd: 1, preco: PAO_BASE.preco }];
 
@@ -433,9 +444,7 @@
         listaItens.push({ nome: i.nome, qtd: i.qtd, preco: i.preco });
       });
 
-      // CAPTURA O NOME PERSONALIZADO DIGITADO PELO CLIENTE
-      const nomePersonalizadoInput = document.getElementById('nome-personalizado-lanche').value.trim();
-      const tituloLanche = nomePersonalizadoInput ? `${nomePersonalizadoInput} (Lanche #${contadorLanches})` : `Lanche #${contadorLanches}`;
+      const tituloLanche = `${nomePersonalizadoInput} (Lanche #${contadorLanches})`;
 
       const novoLanche = {
         idUnico: 'lanche_' + Date.now(),
@@ -450,7 +459,7 @@
 
       lancheEmMontagem = { ingredientes: [] };
       lancheFoiModificado = false;
-      document.getElementById('nome-personalizado-lanche').value = ''; // Limpa o campo para o próximo lanche
+      inputNomeLanche.value = ''; // Limpa o campo para o próximo lanche
       
       renderizarInterface(dadosCardapioGlobal);
       atualizarCarrinho();
