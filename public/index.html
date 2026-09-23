@@ -103,7 +103,6 @@
     .aviso-taxa-entrega { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px; padding: 10px; font-size: 12px; margin-top: 8px; }
     .btn-gps { background: #17a2b8; color: white; border: none; padding: 8px; width: 100%; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; margin-top: 5px; transition: background 0.3s ease; }
 
-    /* Animação para destacar o botão de GPS em caso de esquecimento */
     @keyframes piscarGps {
       0% { background-color: #17a2b8; transform: scale(1); }
       50% { background-color: #dc3545; transform: scale(1.03); }
@@ -136,6 +135,12 @@
     <div class="box-montagem-header">
       <h3>🍔 Monte seu Lanche</h3>
       <span id="numero-lanche-txt" style="font-size: 12px; background: #eee; padding: 3px 8px; border-radius: 10px;">Lanche nº 1</span>
+    </div>
+
+    <!-- CAMPO PARA O CLIENTE NOMEAR O LANCHE -->
+    <div class="campo" style="margin-bottom: 12px;">
+      <label>Nome ou Apelido deste Lanche (Opcional)</label>
+      <input type="text" id="nome-personalizado-lanche" placeholder="Ex: X-Salada do Pai, Lanche sem cebola...">
     </div>
 
     <!-- PÃO BASE FIXO -->
@@ -257,10 +262,8 @@
     let taxaEntregaCalculada = 0;
     let localizacaoCliente = null;
 
-    // Flag de controle para verificar se o cliente modificou o lanche mas esqueceu de adicionar
     let lancheFoiModificado = false;
 
-    // BASE OBRIGATÓRIA PARA LANCHE
     const PAO_BASE = { nome: 'Pão com Maionese Caseira', preco: 6.00 };
 
     let lancheEmMontagem = {
@@ -269,14 +272,12 @@
 
     let dadosCardapioGlobal = [];
 
-    // Função utilitária para verificar se o produto está ativo no sistema
     function isProdutoAtivo(p) {
       if (p.ativo === false || p.disponivel === false) return false;
       return true;
     }
 
     function rolarParaCarrinho() {
-      // TRAVA DE SEGURANÇA: Se o cliente mexeu nos ingredientes do lanche e tentar pular direto pro carrinho sem adicionar
       if (lancheFoiModificado) {
         const confirmar = confirm(
           "⚠️ ATENÇÃO: Você personalizou seu lanche, mas ainda NÃO clicou em 'Adicionar este Lanche ao Pedido'!\n\n" +
@@ -286,7 +287,7 @@
           salvarLancheAtualNoCarrinho();
           return;
         } else {
-          lancheFoiModificado = false; // Desconsidera e deixa rolar
+          lancheFoiModificado = false;
         }
       }
 
@@ -326,7 +327,6 @@
       containerOutros.innerHTML = '';
       containerIngredientes.innerHTML = '';
 
-      // Busca por categoria "lanche" ou "lanches" de forma insensível a maiúsculas/minúsculas
       let catLanches = cardapio.find(c => c.categoria && c.categoria.toLowerCase().includes('lanche'));
 
       if (catLanches && catLanches.produtos && catLanches.produtos.length > 0) {
@@ -361,7 +361,6 @@
         areaMontagem.style.display = 'none';
       }
 
-      // Renderiza bebidas, porções, sobremesas, etc.
       cardapio.forEach(cat => {
         if (cat.categoria && cat.categoria.toLowerCase().includes('lanche')) return;
 
@@ -404,7 +403,6 @@
         }
       }
 
-      // Ativa a flag informando que o lanche foi modificado na montagem atual
       lancheFoiModificado = lancheEmMontagem.ingredientes.length > 0;
 
       renderizarInterface(dadosCardapioGlobal);
@@ -435,10 +433,14 @@
         listaItens.push({ nome: i.nome, qtd: i.qtd, preco: i.preco });
       });
 
+      // CAPTURA O NOME PERSONALIZADO DIGITADO PELO CLIENTE
+      const nomePersonalizadoInput = document.getElementById('nome-personalizado-lanche').value.trim();
+      const tituloLanche = nomePersonalizadoInput ? `${nomePersonalizadoInput} (Lanche #${contadorLanches})` : `Lanche #${contadorLanches}`;
+
       const novoLanche = {
         idUnico: 'lanche_' + Date.now(),
         tipo: 'lanche_montado',
-        titulo: `Lanche #${contadorLanches}`,
+        titulo: tituloLanche,
         precoTotal: subtotal,
         itens: listaItens
       };
@@ -447,18 +449,18 @@
       contadorLanches++;
 
       lancheEmMontagem = { ingredientes: [] };
-      lancheFoiModificado = false; // Reseta a trava após adicionar com sucesso
+      lancheFoiModificado = false;
+      document.getElementById('nome-personalizado-lanche').value = ''; // Limpa o campo para o próximo lanche
       
       renderizarInterface(dadosCardapioGlobal);
       atualizarCarrinho();
 
-      alert(`✅ Lanche #${contadorLanches - 1} adicionado ao seu pedido! Você já pode montar outro lanche se desejar.`);
+      alert(`✅ Lanche adicionado ao seu pedido! Você já pode montar outro lanche se desejar.`);
     }
 
     function adicionarOutroItem(id, nome, preco) {
       if (!lojaAberta) return alert('A loja está fechada!');
 
-      // TRAVA DE SEGURANÇA: Se mexeu no lanche e tentou clicar em adicionar outra coisa (ex: bebida) sem salvar o lanche
       if (lancheFoiModificado) {
         const confirmar = confirm(
           "⚠️ ATENÇÃO: Você personalizou seu lanche, mas ainda NÃO clicou em 'Adicionar este Lanche ao Pedido'!\n\n" +
@@ -624,7 +626,6 @@
     function enviarPedido() {
       if (!lojaAberta) return alert('A loja está fechada no momento!');
 
-      // TRAVA DE SEGURANÇA: Se o cliente mexeu nos ingredientes e tentou finalizar o pedido direto
       if (lancheFoiModificado) {
         const confirmar = confirm(
           "⚠️ ATENÇÃO: Você personalizou seu lanche, mas ainda NÃO clicou em 'Adicionar este Lanche ao Pedido'!\n\n" +
@@ -651,7 +652,6 @@
       if (!nome) return alert('Por favor, digite seu nome.');
       if (!whatsapp || whatsapp.length < 10) return alert('Por favor, insira um número de WhatsApp válido com DDD.');
       
-      // TRAVA OBRIGATÓRIA DE ENTREGA E LOCALIZAÇÃO (GPS)
       if (tipoEntrega === 'entrega') {
         if (!endereco) return alert('Por favor, informe o endereço de entrega.');
         
@@ -686,7 +686,7 @@
 
           itensFormatadosSocket.push({
             quantidade: 1,
-            nome: `${item.titulo}: ${item.itens.map(i => `${i.qtd}x ${i.nome}`).join(', ')}`
+            nome: `${item.titulo}: ${item.itens.map(i => `${i.qtd}x${i.nome}`).join(', ')}`
           });
         } else {
           const sub = item.precoTotal * item.quantidade;
