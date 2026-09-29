@@ -25,9 +25,9 @@ const DEFAULT_CONFIG = {
   lojaEndereco: "Rua Demeciano de Mattos Pereira, 3250 C - Jardim Novo Horizonte, Dourados - MS",
   lojaLat: -22.232117,
   lojaLng: -54.845952,
-  taxaBase: 5.50,
-  valorPorKm: 1.30,
-  distanciaMaximaKm: 20,
+  taxaBase: 5.00,
+  valorPorKm: 1.00,
+  distanciaMaximaKm: 22,
   lojaAberta: true
 };
 
