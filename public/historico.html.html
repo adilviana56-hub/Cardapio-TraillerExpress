@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Histórico de Lanches Personalizados</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #d9534f; }
+        .controls { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 10px; flex-wrap: wrap; }
+        input[type="text"] { padding: 10px; width: 60%; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        button { padding: 10px 15px; background: #5cb85c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        button:hover { background: #4cae4c; }
+        .btn-danger { background: #d9534f; }
+        .btn-danger:hover { background: #c9302c; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 14px; }
+        th { background-color: #f8f9fa; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .ingredientes-lista { font-size: 13px; color: #666; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🍔 Histórico de Lanches Personalizados</h2>
+    <p>Esta ferramenta guarda automaticamente os lanches montados pelos clientes para consulta rápida ou exportação.</p>
+
+    <div class="controls">
+        <input type="text" id="buscaInput" placeholder="Pesquisar por nome do cliente ou nome do lanche..." onkeyup="filtrarTabela()">
+        <div>
+            <button onclick="exportarExcel()">Exportar para Excel (CSV)</button>
+            <button class="btn-danger" onclick="limparHistorico()">Limpar Tudo</button>
+        </div>
+    </div>
+
+    <table id="tabelaHistorico">
+        <thead>
+            <tr>
+                <th>Data / Hora</th>
+                <th>Cliente / Contato</th>
+                <th>Nome do Lanche & Ingredientes</th>
+            </tr>
+        </thead>
+        <tbody id="corpoTabela">
+            <!-- Os dados entram aqui automaticamente -->
+        </tbody>
+    </table>
+</div>
+
+<!-- Biblioteca Socket.io para escutar os pedidos em tempo real -->
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let historicoLanches = JSON.parse(localStorage.getItem('historico_lanches_express')) || [];
+
+    function renderizarTabela(dados = historicoLanches) {
+        const corpo = document.getElementById('corpoTabela');
+        corpo.innerHTML = '';
+
+        if (dados.length === 0) {
+            corpo.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #888;">Nenhum lanche personalizado registado ainda.</td></tr>`;
+            return;
+        }
+
+        dados.slice().reverse().forEach(item => {
+            let tr = document.createElement('tr');
+            
+            let ingredientesHtml = '';
+            if (Array.isArray(item.itens)) {
+                item.itens.forEach(i => {
+                    ingredientesHtml += `<div>• ${i.quantidade || 1}x ${i.nome || i} ${i.observacao ? '('+i.observacao+')' : ''}</div>`;
+                });
+            } else {
+                ingredientesHtml = item.ingredientes || 'Não especificado';
+            }
+
+            tr.innerHTML = `
+                <td>${item.data}</td>
+                <td><strong>${item.cliente}</strong><br><small>${item.whatsapp || ''}</small></td>
+                <td>
+                    <span style="color: #d9534f; font-weight: bold; font-size: 15px;">${item.nomeLanche || 'Lanche Personalizado'}</span>
+                    <div class="ingredientes-lista">${ingredientesHtml}</div>
+                </td>
+            `;
+            corpo.appendChild(tr);
+        });
+    }
+
+    // Escuta novos pedidos que chegam do seu sistema no servidor
+    socket.on('novoPedido', (pedido) => {
+        // Verifica se é um pedido que contem itens personalizados ou lanches do cardápio escolhidos
+        const novoRegistro = {
+            data: new Date().toLocaleString('pt-BR'),
+            cliente: pedido.cliente || 'Cliente',
+            whatsapp: pedido.whatsapp || '',
+            nomeLanche: pedido.nomeLanche || 'Pedido Personalizado',
+            itens: pedido.itens || []
+        };
+
+        historicoLanches.push(novoRegistro);
+        localStorage.setItem('historico_lanches_express', JSON.stringify(historicoLanches));
+        renderizarTabela();
+    });
+
+    function filtrarTabela() {
+        const termo = document.getElementById('buscaInput').value.toLowerCase();
+        const filtrados = historicoLanches.filter(item => 
+            item.cliente.toLowerCase().includes(termo) || 
+            (item.nomeLanche && item.nomeLanche.toLowerCase().includes(termo))
+        );
+        renderizarTabela(filtrados);
+    }
+
+    function exportarExcel() {
+        if (historicoLanches.length === 0) {
+            alert('Não há dados para exportar!');
+            return;
+        }
+        let csv = '\uFEFFData;Cliente;WhatsApp;Nome do Lanche;Itens\n';
+        historicoLanches.forEach(i => {
+            let itensStr = Array.isArray(i.itens) ? i.itens.map(x => `${x.quantidade || 1}x ${x.nome}`).join(' | ') : '';
+            csv += `"${i.data}";"${i.cliente}";"${i.whatsapp}";"${i.nomeLanche}";"${itensStr}"\n`;
+        });
+        let blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        let link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'historico_lanches.csv';
+        link.click();
+    }
+
+    function limparHistorico() {
+        if (confirm('Tem certeza que deseja apagar todo o histórico salvo?')) {
+            historicoLanches = [];
+            localStorage.removeItem('historico_lanches_express');
+            renderizarTabela();
+        }
+    }
+
+    // Carrega a tabela ao abrir a página
+    renderizarTabela();
+</script>
+
+</body>
+</html>
