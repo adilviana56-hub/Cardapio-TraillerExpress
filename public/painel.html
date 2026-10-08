@@ -42,7 +42,7 @@
 
     /* Cards de Categorias e Produtos */
     .cat-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 15px; background: #fafafa; }
-    .cat-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
+    .cat-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
     .cat-header h3 { font-size: 16px; color: #cc0000; }
 
     .item-produto { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
@@ -392,7 +392,7 @@
 
       let itensFormatados = Array.isArray(itensLista) ? itensLista.map(i => `
         <div class="item-cupom">
-          <strong>${i.quantidade}x</strong> ${i.nome}
+          <strong>${i.quantidade}x</strong>${i.nome}
         </div>
       `).join('') : '';
 
@@ -401,17 +401,14 @@
         <div style="text-align: center; font-size: 10px;">Comprovante de Pedido</div>
         <div class="divisoria"></div>
         <p><strong>PEDIDO:</strong> #${idStr ? idStr.slice(-4) : '---'} - ${p.data_formatada || p.data || ''}</p>
-        <p><strong>CLIENTE:</strong> ${p.cliente || 'Cliente'}</p>
-        ${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
+        <p><strong>CLIENTE:</strong> ${p.cliente \vert{}\vert{} 'Cliente'}</p>${p.whatsapp || p.telefone ? `<p><strong>TEL:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
         <p><strong>ENDEREÇO:</strong> ${p.endereco || p.tipo_entrega || 'Retirada'}</p>
         <div class="divisoria"></div>
         <p><strong>ITENS SOLICITADOS:</strong></p>
         ${itensFormatados}
         <div class="divisoria"></div>
-        <p><strong>PAGAMENTO:</strong> ${(p.pagamento || '').toUpperCase()}</p>
-        ${p.troco ? `<p><strong>TROCO PARA:</strong> R$ ${p.troco}</p>` : ''}
-        <p style="font-size: 14px; margin-top: 4px;"><strong>TOTAL: R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')}</strong></p>
-        ${p.observacao ? `<div class="divisoria"></div><p><strong>OBS:</strong> ${p.observacao}</p>` : ''}
+        <p><strong>PAGAMENTO:</strong> ${(p.pagamento \vert{}\vert{} '').toUpperCase()}</p>${p.troco ? `<p><strong>TROCO PARA:</strong> R$ ${p.troco}</p>` : ''}
+        <p style="font-size: 14px; margin-top: 4px;"><strong>TOTAL: R$ ${Number(p.total \vert{}\vert{} 0).toFixed(2).replace('.', ',')}</strong></p>${p.observacao ? `<div class="divisoria"></div><p><strong>OBS:</strong> ${p.observacao}</p>` : ''}
         <div class="divisoria"></div>
         <div style="text-align: center; font-size: 10px; margin-top: 8px;">Obrigado pela preferência! 🍔</div>
       `;
@@ -458,7 +455,7 @@
         
         produtosOrdenados.forEach(([nome, qtd], index) => {
           htmlRanking += `<tr>
-            <td style="padding: 6px; border-bottom: 1px solid #eee;">${index + 1}. ${nome}</td>
+            <td style="padding: 6px; border-bottom: 1px solid #eee;">${index + 1}.${nome}</td>
             <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: #cc0000;">${qtd}x</td>
           </tr>`;
         });
@@ -585,14 +582,16 @@
         return;
       }
 
-      cardapioAtual.forEach(cat => {
+      cardapioAtual.forEach((cat, index) => {
         const listaProdutos = cat.produtos || cat.itens || [];
 
         let html = `
           <div class="cat-box">
             <div class="cat-header">
               <h3>${cat.categoria}</h3>
-              <div>
+              <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                <button class="btn btn-info" style="padding: 4px 6px; font-size: 12px;" onclick="moverCategoria(${index}, 'subir')" title="Mover para cima">⬆️</button>
+                <button class="btn btn-info" style="padding: 4px 6px; font-size: 12px;" onclick="moverCategoria(${index}, 'descer')" title="Mover para baixo">⬇️</button>
                 <button class="btn btn-warning" style="padding: 4px 8px; font-size: 12px;" onclick="editarCategoria('${(cat.categoria || '').replace(/'/g, "\\'")}')">✏️ Editar Nome</button>
                 <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="excluirCategoria('${(cat.categoria || '').replace(/'/g, "\\'")}')">🗑️ Excluir</button>
               </div>
@@ -616,138 +615,140 @@
                 </div>
                 <div class="item-acoes">
                   <button class="btn btn-warning" style="padding: 5px 8px; font-size: 12px;" onclick="editarProduto(${p.id}, '${nomeEscapado}', ${preco}, '${descEscapada}')">✏️ Editar</button>
-                  <button class="btn ${ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id}, ${!ativo})">
+                  <button class="btn ${ativo ? 'btn-sucesso' : 'btn-danger'}" style="padding: 5px 8px; font-size: 12px;" onclick="toggleProduto(${p.id},${!ativo})">
                     ${ativo ? 'Disponível' : 'Esgotado'}
                   </button>
                   <button class="btn btn-danger" style="padding: 5px 8px; font-size: 12px;" onclick="excluirProduto(${p.id})">🗑️</button>
+                </div>
               </div>
-            </div>
-          `;
-        });
+            `;
+          });
+        }
+
+        html += `</div>`;
+        container.innerHTML += html;
+      });
+    }
+
+    function moverCategoria(index, direcao) {
+      if (direcao === 'subir' && index > 0) {
+        const temp = cardapioAtual[index];
+        cardapioAtual[index] = cardapioAtual[index - 1];
+        cardapioAtual[index - 1] = temp;
+      } else if (direcao === 'descer' && index < cardapioAtual.length - 1) {
+        const temp = cardapioAtual[index];
+        cardapioAtual[index] = cardapioAtual[index + 1];
+        cardapioAtual[index + 1] = temp;
+      } else {
+        return;
       }
 
-      html += `</div>`;
-      container.innerHTML += html;
-    });
-  }
-
-  function adicionarCategoria() {
-    const input = document.getElementById('nova-categoria-nome');
-    if (input.value.trim()) {
-      socket.emit('adicionarCategoria', input.value.trim());
-      input.value = '';
-    }
-  }
-
-  function editarCategoria(nomeAntigo) {
-    const novoNome = prompt("Digite o novo nome para a categoria:", nomeAntigo);
-    if (novoNome && novoNome.trim()) {
-      socket.emit('editarCategoria', { nomeAntigo, novoNome: novoNome.trim() });
-    }
-  }
-
-  function excluirCategoria(nomeCategoria) {
-    if (confirm(`Excluir a categoria "${nomeCategoria}" e todos os seus produtos?`)) {
-      socket.emit('excluirCategoria', nomeCategoria);
-    }
-  }
-
-  function adicionarProduto() {
-    const categoria = document.getElementById('prod-categoria').value;
-    const nome = document.getElementById('prod-nome').value.trim();
-    const preco = document.getElementById('prod-preco').value;
-    const descricao = document.getElementById('prod-descricao').value.trim();
-
-    if (!categoria || !nome || !preco) {
-      return alert('Preencha a Categoria, Nome e Preço!');
+      renderizarCardapio();
+      atualizarSelectCategorias();
+      socket.emit('atualizarOrdemCategorias', cardapioAtual);
     }
 
-    socket.emit('adicionarProduto', { categoria, nome, preco: parseFloat(preco), descricao, ativo: true, disponivel: true });
-
-    document.getElementById('prod-nome').value = '';
-    document.getElementById('prod-preco').value = '';
-    document.getElementById('prod-descricao').value = '';
-  }
-
-  function editarProduto(idProduto, nomeAtual, precoAtual, descAtual) {
-    const novoNome = prompt("Nome do Produto:", nomeAtual);
-    if (novoNome === null) return;
-
-    const novoPrecoStr = prompt("Preço (R$):", precoAtual);
-    if (novoPrecoStr === null) return;
-    const novoPreco = parseFloat(novoPrecoStr.replace(',', '.'));
-
-    const novaDesc = prompt("Descrição:", descAtual);
-    if (novaDesc === null) return;
-
-    if (!novoNome.trim() || isNaN(novoPreco)) {
-      return alert("Nome ou Preço inválidos!");
+    function adicionarCategoria() {
+      const input = document.getElementById('nova-categoria-nome');
+      if (input.value.trim()) {
+        socket.emit('adicionarCategoria', input.value.trim());
+        input.value = '';
+      }
     }
 
-    socket.emit('editarProduto', { idProduto, nome: novoNome, preco: novoPreco, descricao: novaDesc });
-  }
-
-  function toggleProduto(idProduto, statusNovo) {
-    socket.emit('mudarStatusProduto', { idProduto, disponivel: statusNovo, ativo: statusNovo });
-  }
-
-  function excluirProduto(idProduto) {
-    if (confirm("Deseja realmente excluir este produto?")) {
-      socket.emit('excluirProduto', idProduto);
-    }
-  }
-
-  function renderizarPedidos(pedidos) {
-    const container = document.getElementById('container-pedidos');
-    if (!pedidos || pedidos.length === 0) {
-      container.innerHTML = '<p style="color: #777;">Nenhum pedido ativo no momento.</p>';
-      return;
+    function editarCategoria(nomeAntigo) {
+      const novoNome = prompt("Digite o novo nome para a categoria:", nomeAntigo);
+      if (novoNome && novoNome.trim()) {
+        socket.emit('editarCategoria', { nomeAntigo, novoNome: novoNome.trim() });
+      }
     }
 
-    container.innerHTML = '';
-    pedidos.forEach(p => {
-      let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x ${i.nome}`).join('<br>') : 'Sem itens';
-      const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
-      const idNum = p.id;
-      const idStr = String(p.id || '');
+    function excluirCategoria(nomeCategoria) {
+      if (confirm(`Excluir a categoria "${nomeCategoria}" e todos os seus produtos?`)) {
+        socket.emit('excluirCategoria', nomeCategoria);
+      }
+    }
 
-      container.innerHTML += `
-        <div class="pedido-card ${p.status || 'pendente'}">
-          <div class="pedido-header">
-            <span>Pedido #${idStr ? idStr.slice(-4) : '---'} - ${p.cliente || 'Cliente'} (${p.data || ''})</span>
-            <span>Status: <strong>${statusTexto}</strong></span>
-          </div>
-          <p><strong>Itens:</strong><br>${itensTxt}</p>
-          <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total || 0).toFixed(2).replace('.', ',')} | <strong>Pagamento:</strong> ${(p.pagamento || '').toUpperCase()}</p>
-          <p><strong>Entrega:</strong> ${p.endereco || 'Retirada / Balcão'}</p>
-          ${p.whatsapp || p.telefone ? `<p><strong>WhatsApp:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
-          ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
-          
-          <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="btn btn-imprimir" onclick="imprimirPedido(${idNum})">🖨️ Imprimir 80mm / PDF</button>
+    function adicionarProduto() {
+      const categoria = document.getElementById('prod-categoria').value;
+      const nome = document.getElementById('prod-nome').value.trim();
+      const preco = document.getElementById('prod-preco').value;
+      const descricao = document.getElementById('prod-descricao').value.trim();
+
+      if (!categoria || !nome || !preco) {
+        return alert('Preencha a Categoria, Nome e Preço!');
+      }
+
+      socket.emit('adicionarProduto', { categoria, nome, preco: parseFloat(preco), descricao, ativo: true, disponivel: true });
+
+      document.getElementById('prod-nome').value = '';
+      document.getElementById('prod-preco').value = '';
+      document.getElementById('prod-descricao').value = '';
+    }
+
+    function editarProduto(idProduto, nomeAtual, precoAtual, descAtual) {
+      const novoNome = prompt("Nome do Produto:", nomeAtual);
+      if (novoNome === null) return;
+
+      const novoPrecoStr = prompt("Preço (R$):", precoAtual);
+      if (novoPrecoStr === null) return;
+      const novoPreco = parseFloat(novoPrecoStr.replace(',', '.'));
+
+      const novaDesc = prompt("Descrição:", descAtual);
+      if (novaDesc === null) return;
+
+      if (!novoNome.trim() || isNaN(novoPreco)) {
+        return alert("Nome ou Preço inválidos!");
+      }
+
+      socket.emit('editarProduto', { idProduto, nome: novoNome, preco: novoPreco, descricao: novaDesc });
+    }
+
+    function toggleProduto(idProduto, statusNovo) {
+      socket.emit('mudarStatusProduto', { idProduto, disponivel: statusNovo, ativo: statusNovo });
+    }
+
+    function excluirProduto(idProduto) {
+      if (confirm("Deseja realmente excluir este produto?")) {
+        socket.emit('excluirProduto', idProduto);
+      }
+    }
+
+    function renderizarPedidos(pedidos) {
+      const container = document.getElementById('container-pedidos');
+      if (!pedidos || pedidos.length === 0) {
+        container.innerHTML = '<p style="color: #777;">Nenhum pedido ativo no momento.</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      pedidos.forEach(p => {
+        let itensTxt = p.itens ? p.itens.map(i => `${i.quantidade}x${i.nome}`).join('<br>') : 'Sem itens';
+        const statusTexto = (p.status || 'pendente').replace('_', ' ').toUpperCase();
+        const idNum = p.id;
+        const idStr = String(p.id || '');
+
+        container.innerHTML += `
+          <div class="pedido-card ${p.status || 'pendente'}">
+            <div class="pedido-header">
+              <span>Pedido #${idStr ? idStr.slice(-4) : '---'} - ${p.cliente \vert{}\vert{} 'Cliente'} (${p.data || ''})</span>
+              <span>Status: <strong>${statusTexto}</strong></span>
+            </div>
+            <p><strong>Itens:</strong><br>${itensTxt}</p>
+            <p style="margin-top:5px;"><strong>Total:</strong> R$ ${Number(p.total \vert{}\vert{} 0).toFixed(2).replace('.', ',')} \vert{} <strong>Pagamento:</strong>${(p.pagamento || '').toUpperCase()}</p>
+            <p><strong>Entrega:</strong> ${p.endereco || 'Retirada / Balcão'}</p>
+            ${p.whatsapp || p.telefone ? `<p><strong>WhatsApp:</strong> ${p.whatsapp || p.telefone}</p>` : ''}
+            ${p.observacao ? `<p style="color: #d9534f;"><strong>Obs:</strong> ${p.observacao}</p>` : ''}
             
-            ${p.status === 'pendente' ? `
-              <button class="btn btn-info" onclick="mudarStatusPedido(${idNum}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
-            ` : ''}
+            <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-imprimir" onclick="imprimirPedido(${idNum})">🖨️ Imprimir 80mm / PDF</button>
+              
+              ${p.status === 'pendente' ? `
+                <button class="btn btn-info" onclick="mudarStatusPedido(${idNum}, 'em_preparo')">👨‍🍳 Aceitar / Em Preparo</button>
+              ` : ''}
 
-            ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
-              <button class="btn btn-warning" onclick="mudarStatusPedido(${idNum}, 'saiu_entrega')">🛵 Saiu para Entrega</button>
-            ` : ''}
+              ${(p.status === 'pendente' || p.status === 'em_preparo') ? `
+                <button class="btn btn-warning" onclick="mudarStatusPedido(${idNum}, 'saiu_entrega')">🛵 Saiu para Entrega</button>
+              ` : ''}
 
-            <button class="btn btn-danger" onclick="removerPedido(${idNum})">✅ Concluir / Apagar</button>
-        </div>
-      </div>
-      `;
-    });
-  }
-
-  function mudarStatusPedido(id, status) {
-    socket.emit('alterarStatusPedido', { id: Number(id), status });
-  }
-
-  function removerPedido(id) {
-    socket.emit('removerPedido', Number(id));
-  }
-  </script>
-</body>
-</html>
+              <button class="btn btn-sucesso" onclick="mudarStatusPedido(${idNum}, 'concluido')">✅ Concluir</button>
