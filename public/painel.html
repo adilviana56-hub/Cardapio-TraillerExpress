@@ -390,11 +390,22 @@
         try { itensLista = JSON.parse(itensLista); } catch(e) { itensLista = []; }
       }
 
-      let itensFormatados = Array.isArray(itensLista) ? itensLista.map(i => `
-        <div class="item-cupom">
-          <strong>${i.quantidade}x</strong> ${i.nome}
-        </div>
-      `).join('') : '';
+      let itensFormatados = Array.isArray(itensLista) ? itensLista.map(i => {
+        const quantidade = Math.max(1, Number(i.quantidade) || 1);
+        const temSubtotal = i.subtotal !== undefined && i.subtotal !== null && i.subtotal !== '' && Number.isFinite(Number(i.subtotal));
+        const temPrecoUnitario = i.precoUnitario !== undefined && i.precoUnitario !== null && i.precoUnitario !== '' && Number.isFinite(Number(i.precoUnitario));
+        const subtotalItem = temSubtotal ? Number(i.subtotal) : (temPrecoUnitario ? Number(i.precoUnitario) * quantidade : null);
+        const valorFormatado = subtotalItem === null ? '' : `R$ ${subtotalItem.toFixed(2).replace('.', ',')}`;
+        const unitarioFormatado = quantidade > 1 && temPrecoUnitario
+          ? `<div style="font-size: 10px;">(${quantidade}x R$ ${Number(i.precoUnitario).toFixed(2).replace('.', ',')} cada)</div>`
+          : '';
+        return `
+          <div class="item-cupom" style="margin-bottom: 6px;">
+            <div><strong>${quantidade}x</strong> ${i.nome}</div>
+            ${valorFormatado ? `<div style="text-align: right; font-weight: bold;">${valorFormatado}</div>${unitarioFormatado}` : ''}
+          </div>
+        `;
+      }).join('') : '';
 
       area.innerHTML = `
         <h2>TRAILER EXPRESS</h2>
