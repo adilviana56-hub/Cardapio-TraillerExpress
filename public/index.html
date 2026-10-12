@@ -695,7 +695,9 @@
 
           itensFormatadosSocket.push({
             quantidade: 1,
-            nome: `${item.titulo}: ${item.itens.map(i => `${i.qtd}x${i.nome}`).join(', ')}`
+            nome: `${item.titulo}: ${item.itens.map(i => `${i.qtd}x${i.nome}`).join(', ')}`,
+            precoUnitario: Number(item.precoTotal),
+            subtotal: Number(item.precoTotal)
           });
         } else {
           const sub = item.precoTotal * item.quantidade;
@@ -704,7 +706,9 @@
 
           itensFormatadosSocket.push({
             quantidade: item.quantidade,
-            nome: item.nome
+            nome: item.nome,
+            precoUnitario: Number(item.precoTotal),
+            subtotal: Number(sub)
           });
         }
       });
